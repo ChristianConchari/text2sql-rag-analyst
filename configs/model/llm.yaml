@@ -1,0 +1,11 @@
+# Proveedor del LLM: se cambia aquí, no en el código.
+provider: local            # local | anthropic
+local:
+  base_url: http://localhost:11434/v1   # Ollama (API compatible con OpenAI)
+  model: qwen2.5-coder:14b              # a confirmar con la ablación
+  temperature: 0
+  timeout_s: 120
+  # Máquina remota (RTX 4070 Super, 12 GB): poner aquí la URL del túnel o exportar LLM_BASE_URL.
+anthropic:
+  model: claude-sonnet-5-5
+  api_key_env: ANTHROPIC_API_KEY        # la clave va en el entorno, nunca en el repo

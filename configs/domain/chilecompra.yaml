@@ -1,0 +1,17 @@
+# Política SQL del dominio ChileCompra. La lee src/policies (no hay nada hardcodeado allí).
+allowed_tables: [oc_lineas]
+limits:
+  default: 100     # se inyecta si la consulta no trae LIMIT
+  max: 1000        # un LIMIT mayor se recorta a este valor
+# Columnas con datos personales: la consulta se rechaza si las menciona (o usa SELECT *).
+blocked_columns:
+  - RutSucursal    # puede ser el RUT personal de un proveedor persona natural
+  - Sucursal       # a veces es el RUT sin puntos
+# Se permiten, pero el verificador emite una advertencia (enmascarar en la respuesta).
+restricted_columns:
+  - NombreProveedor
+# Enmascarado de personas naturales: la columna `column` solo se muestra si la fila trae `flag_column` = FALSE.
+# El verificador agrega la marca a la consulta cuando es seguro; el guardrail de salida enmascara.
+masking:
+  column: NombreProveedor
+  flag_column: es_persona_natural

@@ -1,0 +1,233 @@
+# v2 evaluation questions: harder, built on the failure modes seen in the v1 baseline.
+# Levers: (S) column / value semantics, (E) entities named as users write them (aliases, accents, ambiguity),
+# (M) multi-step calculations. Table: oc_lineas (one row per order LINE ITEM; order amounts repeat per line).
+# Reference SQL is a first draft authored by the assistant: validate the business definitions before trusting it.
+
+- id: v01
+  lever: S
+  question: "¿Cuántas órdenes de compra provienen de una licitación pública?"
+  kind: answerable
+  difficulty: medium
+  traps: ["la columna es ProcedenciaOC = 'Proveniente de licitación pública'; CodigoLicitacion no vacío da otro número (incluye licitaciones privadas, etc.)"]
+  sql: "select count(distinct Codigo) from oc_lineas where ProcedenciaOC = 'Proveniente de licitación pública'"
+
+- id: v02
+  lever: S
+  question: "¿Cuántas órdenes se emitieron por emergencia, urgencia o imprevisto?"
+  kind: answerable
+  difficulty: medium
+  traps: ["valor largo y exacto de ProcedenciaOC (texto libre con comas)"]
+  sql: "select count(distinct Codigo) from oc_lineas where ProcedenciaOC = 'Emergencia, urgencia o imprevisto'"
+
+- id: v03
+  lever: S
+  question: "¿Cuántas órdenes de compra ágil no fueron tratos directos?"
+  kind: answerable
+  difficulty: hard
+  traps: ["EsTratoDirecto es NULL en las compras ágiles: filtrar = 'No' devuelve 0; hay que usar IS DISTINCT FROM 'Si' o IS NULL"]
+  sql: "select count(distinct Codigo) from oc_lineas where EsCompraAgil = 'Si' and EsTratoDirecto is distinct from 'Si'"
+
+- id: v04
+  lever: S
+  question: "¿Cuántas órdenes están pendientes de que el proveedor las acepte?"
+  kind: answerable
+  difficulty: hard
+  traps: ["Estado = 'Enviada a proveedor'; 'FechaAceptacion is null' da otro número (incluye en proceso y canceladas)"]
+  sql: "select count(distinct Codigo) from oc_lineas where Estado = 'Enviada a proveedor'"
+
+- id: v05
+  lever: S
+  question: "¿Cuál es el monto total de las órdenes emitidas en dólares estadounidenses, en dólares?"
+  kind: answerable
+  difficulty: hard
+  traps: ["MontoTotalOC_PesosChilenos es NULL para USD: hay que usar MontoTotalOC con TipoMonedaOC = 'USD'", "dedup por orden"]
+  sql: |
+    with o as (select Codigo, any_value(TipoMonedaOC) as moneda, any_value(MontoTotalOC) as monto from oc_lineas group by Codigo)
+    select round(sum(monto), 2) from o where moneda = 'USD'
+
+- id: v06
+  lever: S
+  question: "¿Cuántos proveedores son en realidad organismos públicos que también aparecen como compradores?"
+  kind: answerable
+  difficulty: hard
+  traps: ["no hay un campo que lo indique: hay que cruzar NombreProveedor con OrganismoPublico"]
+  sql: "select count(distinct NombreProveedor) from oc_lineas where NombreProveedor in (select distinct OrganismoPublico from oc_lineas)"
+
+- id: v07
+  lever: S
+  question: "¿Qué porcentaje de las órdenes del sector Salud fueron compras ágiles?"
+  kind: answerable
+  difficulty: medium
+  traps: ["dedup por orden antes de calcular el porcentaje"]
+  sql: |
+    with o as (select Codigo, any_value(sector) as sector, any_value(EsCompraAgil) as agil from oc_lineas group by Codigo)
+    select round(100.0 * count(*) filter (where agil = 'Si') / count(*), 2) from o where sector = 'Salud'
+
+- id: v08
+  lever: E
+  question: "¿Cuánto vendió Copec en pesos chilenos?"
+  kind: answerable
+  difficulty: medium
+  traps: ["nombre real 'COPEC S.A.'", "dedup por orden y _PesosChilenos"]
+  sql: |
+    with o as (select Codigo, any_value(NombreProveedor) as prov, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo)
+    select round(sum(monto)) from o where prov = 'COPEC S.A.'
+
+- id: v09
+  lever: E
+  question: "¿Cuánto compró la Municipalidad de Temuco en pesos chilenos?"
+  kind: answerable
+  difficulty: hard
+  traps: ["el nombre real es 'I MUNICIPALIDAD DE TEMUCO'; buscar '%temuco%' incluye además dos corporaciones municipales (resultado distinto)"]
+  sql: |
+    with o as (select Codigo, any_value(OrganismoPublico) as org, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo)
+    select round(sum(monto)) from o where org = 'I MUNICIPALIDAD DE TEMUCO'
+
+- id: v10
+  lever: E
+  question: "¿Cuántas órdenes recibió Sodexo?"
+  kind: answerable
+  difficulty: medium
+  traps: ["nombre real 'SODEXO SOLUCIONES DE MOTIVACION CHILE S.A.'; contar órdenes distintas"]
+  sql: "select count(distinct Codigo) from oc_lineas where NombreProveedor = 'SODEXO SOLUCIONES DE MOTIVACION CHILE S.A.'"
+
+- id: v11
+  lever: E
+  question: "¿Cuántas órdenes emitió el Complejo Asistencial Sótero del Río?"
+  kind: answerable
+  difficulty: hard
+  traps: ["en los datos es 'COMPLEJO ASISTENCIAL DR. SOTERO DEL RIO': mayúsculas, sin tilde y con 'DR.'"]
+  sql: "select count(distinct Codigo) from oc_lineas where OrganismoPublico = 'COMPLEJO ASISTENCIAL DR. SOTERO DEL RIO'"
+
+- id: v12
+  lever: E
+  question: "¿Cuánto gastó el sector Salud en medicamentos, en pesos chilenos?"
+  kind: answerable
+  difficulty: hard
+  traps: ["'medicamentos' = RubroN1 'Medicamentos y productos farmacéuticos'", "nivel ítem: totalLineaNeto con monedaItem = 'CLP'"]
+  sql: |
+    select round(sum(totalLineaNeto)) from oc_lineas
+    where sector = 'Salud' and RubroN1 = 'Medicamentos y productos farmacéuticos' and monedaItem = 'CLP'
+
+- id: v13
+  lever: E
+  question: "¿Cuánto se gastó en combustibles, en pesos chilenos?"
+  kind: answerable
+  difficulty: medium
+  traps: ["RubroN1 'Combustibles, lubricantes y anticorrosivos'", "nivel ítem, monedaItem = 'CLP'"]
+  sql: |
+    select round(sum(totalLineaNeto)) from oc_lineas
+    where RubroN1 = 'Combustibles, lubricantes y anticorrosivos' and monedaItem = 'CLP'
+
+- id: v14
+  lever: E
+  question: "¿Cuántas órdenes se emitieron en la región del Biobío?"
+  kind: answerable
+  difficulty: medium
+  traps: ["valor 'Región del Biobío ' con espacio final; escribir 'Bio Bio' no coincide"]
+  sql: "select count(distinct Codigo) from oc_lineas where trim(RegionUnidadCompra) = 'Región del Biobío'"
+
+- id: v15
+  lever: M
+  question: "¿Cuál es el índice de concentración HHI de los proveedores del sector Salud según monto?"
+  kind: answerable
+  difficulty: hard
+  traps: ["HHI = suma de (participación en %)^2 por proveedor", "dedup por orden", "agrupar por proveedor"]
+  sql: |
+    with o as (select Codigo, any_value(CodigoProveedor) as prov, any_value(sector) as sector, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo),
+    p as (select prov, sum(monto) as m from o where sector = 'Salud' group by prov)
+    select round(sum(power(100.0 * m / (select sum(m) from p), 2)), 2) from p
+
+- id: v16
+  lever: M
+  question: "¿Cuántos organismos destinaron más del 50% de su monto comprado a un solo proveedor?"
+  kind: answerable
+  difficulty: hard
+  traps: ["dos niveles de agregación (organismo x proveedor, luego por organismo)", "dedup por orden"]
+  sql: |
+    with o as (select Codigo, any_value(OrganismoPublico) as org, any_value(CodigoProveedor) as prov, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo),
+    op as (select org, prov, sum(monto) as m from o group by org, prov),
+    t as (select org, max(m) / sum(m) as share from op group by org having sum(m) > 0)
+    select count(*) from t where share > 0.5
+
+- id: v17
+  lever: M
+  question: "¿Qué sector tiene el mayor porcentaje de su monto en órdenes de trato directo?"
+  kind: answerable
+  difficulty: hard
+  traps: ["ratio de montos (no de conteos)", "excluir sector NULL", "dedup por orden"]
+  sql: |
+    with o as (select Codigo, any_value(sector) as sector, any_value(EsTratoDirecto) as td, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo)
+    select sector, round(100.0 * sum(case when td = 'Si' then monto else 0 end) / sum(monto), 2) as pct
+    from o where sector is not null group by sector order by pct desc limit 1
+
+- id: v18
+  lever: M
+  question: "¿Cuántas órdenes tardaron más de 5 días en ser aceptadas por el proveedor?"
+  kind: answerable
+  difficulty: medium
+  traps: ["diferencia de fechas FechaAceptacion - FechaEnvio", "excluir órdenes sin aceptación", "dedup por orden"]
+  sql: |
+    with o as (select Codigo, any_value(FechaEnvio) as envio, any_value(FechaAceptacion) as acept from oc_lineas group by Codigo)
+    select count(*) from o where acept is not null and date_diff('day', envio, acept) > 5
+
+- id: v19
+  lever: M
+  question: "¿Qué proveedor tuvo más órdenes con más de 3 ítems?"
+  kind: answerable
+  difficulty: hard
+  traps: ["contar líneas por orden primero, luego órdenes por proveedor"]
+  sql: |
+    with l as (select Codigo, any_value(NombreProveedor) as prov, count(*) as n from oc_lineas group by Codigo)
+    select prov, count(*) as ordenes from l where n > 3 group by prov order by ordenes desc limit 1
+
+- id: v20
+  lever: M
+  question: "¿Cuáles son las 3 regiones con mayor monto promedio por orden en el sector Salud?"
+  kind: answerable
+  difficulty: hard
+  traps: ["promedio por orden (dedup), no por línea", "trim de la región"]
+  sql: |
+    with o as (select Codigo, any_value(trim(RegionUnidadCompra)) as region, any_value(sector) as sector, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo)
+    select region, round(avg(monto)) as promedio from o where sector = 'Salud' group by region order by promedio desc limit 3
+
+- id: v21
+  lever: S
+  question: "¿Cuántas órdenes superaron los mil millones de pesos, por sector?"
+  kind: answerable
+  difficulty: medium
+  traps: ["usar _PesosChilenos (hay otras monedas)", "dedup por orden", "incluir el grupo de sector NULL"]
+  sql: |
+    with o as (select Codigo, any_value(sector) as sector, any_value(MontoTotalOC_PesosChilenos) as monto from oc_lineas group by Codigo)
+    select sector, count(*) from o where monto > 1000000000 group by sector order by 2 desc, 1
+
+- id: v22
+  lever: M
+  question: "¿Cuántas órdenes del sector Salud tienen más de un ítem y superan los 10 millones de pesos?"
+  kind: answerable
+  difficulty: medium
+  traps: ["condición sobre conteo de líneas y sobre monto deduplicado"]
+  sql: |
+    with o as (select Codigo, any_value(sector) as sector, any_value(MontoTotalOC_PesosChilenos) as monto, count(*) as n from oc_lineas group by Codigo)
+    select count(*) from o where sector = 'Salud' and n > 1 and monto > 10000000
+
+- id: v23
+  lever: M
+  question: "¿Cuántos proveedores vendieron a más de 10 organismos distintos?"
+  kind: answerable
+  difficulty: medium
+  sql: "select count(*) from (select CodigoProveedor from oc_lineas group by CodigoProveedor having count(distinct CodigoOrganismoPublico) > 10)"
+
+- id: v24
+  lever: E
+  question: "¿Cuánto compró el hospital más grande?"
+  kind: ambiguous
+  difficulty: hard
+  expected: "Debe pedir aclaración: 'más grande' no está definido (monto comprado, número de órdenes, camas...) y no hay un campo de tamaño."
+
+- id: v25
+  lever: S
+  question: "¿Qué proveedores incumplieron sus entregas?"
+  kind: unanswerable
+  difficulty: hard
+  expected: "No se puede responder: los datos son de órdenes de compra y sus estados, no hay información de cumplimiento de entrega (EstadoProveedor es el estado de la orden, no un desempeño)."

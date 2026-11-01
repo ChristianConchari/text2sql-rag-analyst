@@ -1,0 +1,11 @@
+data/
+*.duckdb
+__pycache__/
+.env
+
+.env
+.env.*
+logs/*
+!logs/.gitkeep
+__pycache__/
+.venv/

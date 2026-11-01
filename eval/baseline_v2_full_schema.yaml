@@ -1,0 +1,52 @@
+# Baseline v2: Claude Sonnet subagents, full 82-column schema in the prompt, no glossary / value index / data access / verifier.
+# Run 2026-10-25 on candidate_questions_v2.yaml. Raw model outputs, unedited.
+v01: |
+  SELECT COUNT(DISTINCT "Codigo") FROM oc_lineas WHERE "CodigoLicitacion" IS NOT NULL AND "CodigoLicitacion" <> '';
+v02: |
+  CLARIFY: "Emergencia, urgencia o imprevisto" corresponds to a specific direct-deal cause that is not identifiable by any known column value without inspecting the data; please confirm which field/value defines it.
+v03: |
+  SELECT COUNT(DISTINCT "Codigo") FROM oc_lineas WHERE "EsCompraAgil" IN ('Si','SI','1','S') AND "EsTratoDirecto" NOT IN ('Si','SI','1','S');
+v04: |
+  SELECT COUNT(DISTINCT "Codigo") FROM oc_lineas WHERE "EstadoProveedor" ILIKE '%pendiente%' OR "Estado" ILIKE '%enviada a proveedor%';
+v05: |
+  SELECT SUM("TotalNetoOC") FROM (SELECT DISTINCT "Codigo", "TotalNetoOC" FROM oc_lineas WHERE "TipoMonedaOC" = 'USD');
+v06: |
+  SELECT COUNT(DISTINCT "CodigoProveedor") FROM oc_lineas WHERE "RutSucursal" IN (SELECT DISTINCT "RutUnidadCompra" FROM oc_lineas);
+v07: |
+  SELECT 100.0 * COUNT(DISTINCT CASE WHEN "EsCompraAgil" IN ('Si','SI','1','S') THEN "Codigo" END) / COUNT(DISTINCT "Codigo") FROM oc_lineas WHERE "sector" ILIKE '%salud%';
+v08: |
+  SELECT SUM("MontoTotalOC_PesosChilenos") FROM (SELECT DISTINCT "Codigo", "MontoTotalOC_PesosChilenos" FROM oc_lineas WHERE "NombreProveedor" ILIKE '%copec%');
+v09: |
+  SELECT SUM("MontoTotalOC_PesosChilenos") AS total_clp FROM (SELECT DISTINCT "Codigo", "MontoTotalOC_PesosChilenos" FROM oc_lineas WHERE "OrganismoPublico" ILIKE '%Municipalidad de Temuco%');
+v10: |
+  SELECT COUNT(DISTINCT "Codigo") AS ordenes FROM oc_lineas WHERE "NombreProveedor" ILIKE '%Sodexo%';
+v11: |
+  SELECT COUNT(DISTINCT "Codigo") AS ordenes FROM oc_lineas WHERE "OrganismoPublico" ILIKE '%Complejo Asistencial%Sotero del Rio%' OR "OrganismoPublico" ILIKE '%Complejo Asistencial%Sótero del Río%';
+v12: |
+  CLARIFY: "Medicamentos" is not a defined field; it is unclear whether to filter by Categoria/Rubro (which level or code) and whether to sum line totals (totalLineaNeto, net of tax) or order totals, so the criteria must be specified.
+v13: |
+  SELECT SUM("totalLineaNeto") AS total_neto FROM oc_lineas WHERE "RubroN1" ILIKE '%combustible%' OR "RubroN2" ILIKE '%combustible%' OR "RubroN3" ILIKE '%combustible%' OR "Categoria" ILIKE '%combustible%';
+v14: |
+  SELECT COUNT(DISTINCT "Codigo") AS ordenes FROM oc_lineas WHERE "RegionUnidadCompra" ILIKE '%Biob%';
+v15: |
+  WITH oc AS (SELECT DISTINCT "Codigo", "CodigoProveedor", "MontoTotalOC_PesosChilenos" AS m FROM oc_lineas WHERE "sector" ILIKE '%Salud%'), p AS (SELECT "CodigoProveedor", SUM(m) AS monto FROM oc GROUP BY 1) SELECT SUM(POWER(monto / (SELECT SUM(monto) FROM p), 2)) * 10000 AS hhi FROM p;
+v16: |
+  WITH oc AS (SELECT DISTINCT "Codigo", "CodigoOrganismoPublico", "CodigoProveedor", "MontoTotalOC_PesosChilenos" AS m FROM oc_lineas), op AS (SELECT "CodigoOrganismoPublico", "CodigoProveedor", SUM(m) AS monto FROM oc GROUP BY 1, 2), tot AS (SELECT "CodigoOrganismoPublico", SUM(monto) AS total, MAX(monto) AS maxp FROM op GROUP BY 1) SELECT COUNT(*) AS organismos FROM tot WHERE total > 0 AND maxp / total > 0.5;
+v17: |
+  SELECT "sector", SUM(CASE WHEN "EsTratoDirecto" IN ('Si','SI','Sí','1','S','true') THEN "MontoTotalOC_PesosChilenos" ELSE 0 END) / SUM("MontoTotalOC_PesosChilenos") AS pct_trato_directo FROM (SELECT DISTINCT ON ("Codigo") * FROM oc_lineas) GROUP BY "sector" HAVING SUM("MontoTotalOC_PesosChilenos") > 0 ORDER BY pct_trato_directo DESC LIMIT 1
+v18: |
+  SELECT COUNT(*) FROM (SELECT "Codigo", MIN("FechaEnvio") AS fe, MIN("FechaAceptacion") AS fa FROM oc_lineas GROUP BY "Codigo") WHERE fa IS NOT NULL AND fe IS NOT NULL AND date_diff('day', fe, fa) > 5
+v19: |
+  SELECT "NombreProveedor", COUNT(*) AS ordenes FROM (SELECT "Codigo", MIN("NombreProveedor") AS "NombreProveedor", COUNT(DISTINCT "IDItem") AS n_items FROM oc_lineas GROUP BY "Codigo") WHERE n_items > 3 GROUP BY "NombreProveedor" ORDER BY ordenes DESC LIMIT 1
+v20: |
+  SELECT "RegionUnidadCompra", AVG("MontoTotalOC_PesosChilenos") AS monto_promedio FROM (SELECT DISTINCT ON ("Codigo") * FROM oc_lineas WHERE "sector" ILIKE '%Salud%') GROUP BY "RegionUnidadCompra" ORDER BY monto_promedio DESC LIMIT 3
+v21: |
+  SELECT "sector", COUNT(*) AS ordenes FROM (SELECT DISTINCT ON ("Codigo") * FROM oc_lineas) WHERE "MontoTotalOC_PesosChilenos" > 1000000000 GROUP BY "sector" ORDER BY ordenes DESC
+v22: |
+  SELECT COUNT(*) FROM (SELECT "Codigo", MAX("MontoTotalOC_PesosChilenos") AS monto, COUNT(*) AS n_lineas FROM oc_lineas WHERE "sector" ILIKE '%Salud%' GROUP BY "Codigo") WHERE n_lineas > 1 AND monto > 10000000
+v23: |
+  SELECT COUNT(*) FROM (SELECT "CodigoProveedor" FROM oc_lineas GROUP BY "CodigoProveedor" HAVING COUNT(DISTINCT "CodigoOrganismoPublico") > 10)
+v24: |
+  CLARIFY: "El hospital más grande" is ambiguous (by purchase amount, number of orders, or physical size, and how to identify hospitals), and the table has no hospital size data.
+v25: |
+  UNANSWERABLE: The table has no delivery or fulfillment-compliance data, only order states and dates, so provider delivery failures cannot be determined.

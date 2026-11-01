@@ -1,0 +1,31 @@
+# Retrieval questions over Ley 19.886 and Decreto 661 (reglamento). `gold` = article ids that contain the answer
+# (format "<norma>|<label>"). Gold chosen by the assistant from the article texts: NOT validated by a legal expert.
+# `gold_extra` = regulation articles added AFTER the first run, once the assistant read their text and found them relevant
+# (the original gold listed only the law article). Reported separately from `gold`.
+# Questions deliberately avoid copying the article wording. Several gold articles = any of them counts as a hit.
+
+- {id: d01, question: "¿Qué órgano resuelve las impugnaciones contra actos de contratación pública?", gold: ["Ley 19886|Artículo 22", "Ley 19886|Artículo 24"]}
+- {id: d02, question: "¿En qué casos se debe declarar inadmisible una oferta?", gold: ["Ley 19886|Artículo 9"], gold_extra: ["Decreto 661|Artículo 59"]}
+- {id: d03, question: "¿Cuándo se puede hacer una licitación privada en lugar de una pública?", gold: ["Ley 19886|Artículo 8", "Ley 19886|Artículo 7"], gold_extra: ["Decreto 661|Artículo 69"]}
+- {id: d04, question: "¿Qué situaciones permiten contratar a un proveedor sin licitación, por trato directo?", gold: ["Ley 19886|Artículo 8 bis"], gold_extra: ["Decreto 661|Artículo 72", "Decreto 661|Artículo 73"]}
+- {id: d05, question: "¿Cuándo procede comprar por cotización?", gold: ["Ley 19886|Artículo 8 quáter"], gold_extra: ["Decreto 661|Artículo 100"]}
+- {id: d06, question: "¿Cómo se adjudica un contrato y quién debe fundamentar la decisión?", gold: ["Ley 19886|Artículo 10"]}
+- {id: d07, question: "¿Qué debe hacer cada institución respecto de su planificación anual de compras?", gold: ["Ley 19886|Artículo 12"]}
+- {id: d08, question: "¿Se puede poner fin a un contrato antes de que termine su plazo?", gold: ["Ley 19886|Artículo 13 bis"], gold_extra: ["Decreto 661|Artículo 130"]}
+- {id: d09, question: "¿Quiénes pueden formar parte del registro oficial de proveedores del Estado?", gold: ["Ley 19886|Artículo 16", "Ley 19886|Artículo 35 septies"], gold_extra: ["Decreto 661|Artículo 141"]}
+- {id: d10, question: "¿En qué circunstancias un organismo puede comprar sin usar el sistema de información de compras?", gold: ["Ley 19886|Artículo 21"], gold_extra: ["Decreto 661|Artículo 115"]}
+- {id: d11, question: "¿Pueden los oferentes comunicarse entre sí mientras dura el proceso de compra?", gold: ["Ley 19886|Artículo 35 ter"]}
+- {id: d12, question: "¿Qué es una unión de empresas pequeñas para participar en una licitación?", gold: ["Ley 19886|Artículo 51", "Ley 19886|Artículo 52", "Ley 19886|Artículo 53"]}
+- {id: d13, question: "¿Qué puede hacer una persona que cree que un proceso de compra fue irregular?", gold: ["Ley 19886|Artículo 30 bis", "Ley 19886|Artículo 30 ter", "Decreto 661|Artículo 18", "Decreto 661|Artículo 19"]}
+- {id: d14, question: "¿Quién está a cargo del sistema de información y gestión de compras del Estado?", gold: ["Ley 19886|Artículo 19", "Ley 19886|Artículo 28"]}
+- {id: d15, question: "¿Cuándo se puede hacer una contratación directa por el bajo monto de la compra?", gold: ["Ley 19886|Artículo 60", "Ley 19886|Artículo 8 bis"]}
+- {id: d16, question: "¿Pueden contratar con el Estado empresas o personas extranjeras?", gold: ["Ley 19886|Artículo 4"]}
+- {id: d17, question: "¿Qué se entiende legalmente por contrato de suministro?", gold: ["Ley 19886|Artículo 2"]}
+- {id: d18, question: "¿Qué tipos de contratos no se rigen por esta ley?", gold: ["Ley 19886|Artículo 3"]}
+- {id: d19, question: "¿Qué es fraccionar una compra para evitar licitar y por qué está prohibido?", gold: ["Decreto 661|Artículo 16"]}
+- {id: d20, question: "¿Cómo se maneja una denuncia presentada de forma reservada?", gold: ["Decreto 661|Artículo 18", "Decreto 661|Artículo 19", "Decreto 661|Artículo 20", "Decreto 661|Artículo 21", "Ley 19886|Artículo 30 ter"]}
+- {id: d21, question: "¿Qué obligaciones de honestidad deben cumplir las entidades que compran?", gold: ["Decreto 661|Artículo 11"]}
+- {id: d22, question: "¿Qué deben hacer los funcionarios cuando tienen un conflicto de intereses en una compra?", gold: ["Decreto 661|Artículo 15", "Decreto 661|Artículo 14", "Ley 19886|Artículo 35 quinquies"]}
+- {id: d23, question: "¿Qué deben tener los proveedores para prevenir faltas de integridad?", gold: ["Decreto 661|Artículo 17"]}
+- {id: d24, question: "¿Qué es el manual de procedimientos de adquisiciones y quién lo prepara?", gold: ["Decreto 661|Artículo 6"]}
+- {id: d25, question: "¿Cómo define el reglamento términos como oferente, bases o adjudicación?", gold: ["Decreto 661|Artículo 4"]}

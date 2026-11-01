@@ -1,0 +1,568 @@
+# Glosario v1 de la tabla oc_lineas (órdenes de compra de ChileCompra, enero 2026)
+# Una fila = una LÍNEA de orden (producto). 349.443 líneas, 131.742 órdenes.
+# Estado: v1 escrito a partir de los nombres de columna y de perfiles contra los datos
+# (2026-11-01). NO está validado por un experto en compras públicas de Chile.
+# Cada columna: desc = qué significa; usar = cómo consultarla; ojo = trampa verificada.
+# Validación contra DuckDB (2026-11-01): las 80 columnas de oc_lineas están cubiertas, sin faltantes ni sobrantes.
+# estado: verificada = lo afirmado se comprobó con `consulta` (resultado en `resultado`);
+#         parcial    = datos verificados, pero el significado es inferido (ver `por_validar`);
+#         supuesto documentado = no se puede comprobar en los datos; se adoptó una regla explícita (`regla_adoptada`) con su evidencia;
+#         inferida   = solo del nombre de la columna o de una inspección, sin consulta que lo respalde.
+
+tabla:
+  nombre: oc_lineas
+  grano: línea de orden de compra (producto dentro de una orden)
+  clave_orden: Codigo        # identifica la orden; ID es su equivalente numérico
+  clave_linea: IDItem
+  reglas_generales:
+    - Los campos de orden (MontoTotalOC, TotalNetoOC, Estado, fechas, comprador, proveedor) se repiten en cada línea de la orden. Para contar o sumar por orden, deduplicar por Codigo.
+    - Para montos por producto o rubro, usar totalLineaNeto (nivel línea), no MontoTotalOC.
+    - Solo MontoTotalOC_PesosChilenos es comparable entre monedas; los campos de línea están en monedaItem.
+    - La región, ciudad y otros textos pueden tener espacios al final; usar trim o ILIKE '%...%'.
+    - Texto libre con acentos y mayúsculas variables: comparar con ILIKE y ambas variantes.
+    - Los nulos son frecuentes. NOT IN con columnas nulas devuelve vacío; usar IS NOT DISTINCT FROM o filtrar IS NOT NULL.
+    - Un grupo con valor NULL en un ranking (p. ej. sector) no es una categoría real: excluirlo o informarlo aparte.
+
+grupos:
+  identificacion_orden: [ID, Codigo, Link, Nombre, Descripcion/Obervaciones]
+  tipo_y_procedencia: [Tipo, CodigoTipo, CodigoAbreviadoTipoOC, DescripcionTipoOC, ProcedenciaOC, EsTratoDirecto, EsCompraAgil, CodigoLicitacion, Codigo_ConvenioMarco, CodigoProyectoPlanAnualCompras]
+  estado_y_fechas: [codigoEstado, Estado, codigoEstadoProveedor, EstadoProveedor, FechaCreacion, FechaEnvio, FechaSolicitudCancelacion, fechaUltimaModificacion, FechaAceptacion, FechaCancelacion]
+  montos_orden: [MontoTotalOC, TipoMonedaOC, MontoTotalOC_PesosChilenos, Impuestos, TipoImpuesto, PorcentajeIva, Descuentos, Cargos, TotalNetoOC]
+  comprador: [CodigoUnidadCompra, RutUnidadCompra, UnidadCompra, CodigoOrganismoPublico, OrganismoPublico, sector, ActividadComprador, CiudadUnidadCompra, RegionUnidadCompra, PaisUnidadCompra, Pais]
+  proveedor: [CodigoSucursal, RutSucursal, Sucursal, CodigoProveedor, NombreProveedor, ActividadProveedor, ComunaProveedor, RegionProveedor, PaisProveedor, PromedioCalificacion, CantidadEvaluacion]
+  condiciones: [Financiamiento, TipoDespacho, FormaPago, "Forma de Pago"]
+  linea_producto: [IDItem, tieneItems, codigoCategoria, Categoria, codigoProductoONU, NombreroductoGenerico, RubroN1, RubroN2, RubroN3, EspecificacionComprador, EspecificacionProveedor, cantidad, UnidadMedida, monedaItem, precioNeto, totalCargos, totalDescuentos, totalImpuestos, totalLineaNeto]
+  tecnicas: [archivo_origen]
+  derivadas: [es_persona_natural]
+
+columnas:
+  # ---------- identificación de la orden ----------
+  ID:
+    desc: 'Identificador numérico de la orden de compra.'
+    usar: 'Equivalente a Codigo; una por orden (131.742 valores distintos).'
+    estado: verificada
+    consulta: 'SELECT count(*) FROM (SELECT Codigo FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT ID)>1)'
+    resultado: '0'
+  Codigo:
+    desc: 'Código visible de la orden (p. ej. 4168-1179-SE22). Termina en el tipo y el año.'
+    usar: 'Clave para contar órdenes con COUNT(DISTINCT Codigo).'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE NOT regexp_matches(Codigo,''^[0-9]+-[0-9]+-[A-Z]+[0-9]{2}$'') OR regexp_extract(Codigo,''-([A-Z]+)[0-9]{2}$'',1)<>Tipo) FROM oc_lineas'
+    resultado: '0'
+  Link:
+    desc: 'URL de la orden en Mercado Público.'
+    usar: 'Solo para citar la fuente; no filtrar ni agrupar.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE Link NOT LIKE ''http%'') FROM oc_lineas'
+    resultado: '0'
+  Nombre:
+    desc: 'Título de la orden. En muchas órdenes automáticas dice "ORDEN DE COMPRA DESDE <licitación>".'
+    usar: 'Búsqueda de texto con ILIKE; poco fiable para clasificar.'
+    estado: inferida
+    por_validar: 'contenido no perfilado; solo se conoce el patrón "ORDEN DE COMPRA DESDE ..." por inspección'
+  Descripcion/Obervaciones:
+    desc: 'Descripción u observaciones de la orden (el nombre real tiene el error "Obervaciones"; va entre comillas por la barra).'
+    usar: 'Búsqueda de texto libre.'
+    ojo: 'Nombre con barra y typo; usar comillas dobles en SQL.'
+    estado: inferida
+    por_validar: 'contenido no perfilado'
+
+  # ---------- tipo y procedencia ----------
+  Tipo:
+    desc: 'Código abreviado del tipo de orden. Igual a CodigoAbreviadoTipoOC.'
+    valores: {SE: Sin emisión automática (154.564 líneas), AG: Compra Ágil (105.772), CM: Convenio Marco (67.725), TD: Trato Directo (18.673), CC: Compra Coordinada (2.686), CT: Compra por Cotización (23)}
+    usar: 'Para "por tipo de compra" agrupar por DescripcionTipoOC (texto legible).'
+    estado: verificada
+    consulta: 'SELECT Tipo, CodigoTipo, CodigoAbreviadoTipoOC, DescripcionTipoOC, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 5 DESC'
+    resultado: 'SE, 8, SE, Sin emisión automática, 154564; AG, 13, AG, Compra Ágil, 105772; CM, 9, CM, Convenio Marco, 67725; TD, 16, TD, Proveniente de Ficha de Trato Direc...'
+  CodigoTipo:
+    desc: 'Código numérico del tipo (8=SE, 13=AG, 9=CM, 16=TD, 14=CC, 17=CT). Redundante.'
+    estado: verificada
+    consulta: 'SELECT Tipo, CodigoTipo, CodigoAbreviadoTipoOC, DescripcionTipoOC, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 5 DESC'
+    resultado: 'SE, 8, SE, Sin emisión automática, 154564; AG, 13, AG, Compra Ágil, 105772; CM, 9, CM, Convenio Marco, 67725; TD, 16, TD, Proveniente de Ficha de Trato Direc...'
+  CodigoAbreviadoTipoOC:
+    desc: 'Duplicado de Tipo. Redundante.'
+    estado: verificada
+    consulta: 'SELECT Tipo, CodigoTipo, CodigoAbreviadoTipoOC, DescripcionTipoOC, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 5 DESC'
+    resultado: 'SE, 8, SE, Sin emisión automática, 154564; AG, 13, AG, Compra Ágil, 105772; CM, 9, CM, Convenio Marco, 67725; TD, 16, TD, Proveniente de Ficha de Trato Direc...'
+  DescripcionTipoOC:
+    desc: 'Nombre legible del tipo de orden.'
+    usar: 'Es lo que se muestra al usuario en agrupaciones.'
+    estado: verificada
+    consulta: 'SELECT Tipo, CodigoTipo, CodigoAbreviadoTipoOC, DescripcionTipoOC, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 5 DESC'
+    resultado: 'SE, 8, SE, Sin emisión automática, 154564; AG, 13, AG, Compra Ágil, 105772; CM, 9, CM, Convenio Marco, 67725; TD, 16, TD, Proveniente de Ficha de Trato Direc...'
+  ProcedenciaOC:
+    desc: 'Origen o justificación de la compra (28 valores, texto largo). Para trato directo indica la causal legal.'
+    valores_clave: "Proveniente de licitación pública (152.135 líneas), Proveniente de convenio marco (68.009), Proveniente de licitación privada, causales de trato directo (Emergencia, urgencia o imprevisto, Proveedor único, etc.)"
+    usar: 'Para "licitación pública" filtrar ProcedenciaOC = ''Proveniente de licitación pública'', NO usar CodigoLicitacion.'
+    ojo: 'Es nulo (105.767 líneas) en casi todas las compras ágiles; un nulo aquí no significa "sin información".'
+    estado: parcial
+    consulta: 'SELECT ProcedenciaOC, count(*) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC LIMIT 4'
+    resultado: 'Proveniente de licitación pública, 152135; None, 105767; Proveniente de convenio marco, 68009; Emergencia, urgencia o imprevisto, 6032'
+    por_validar: 'valores y nulos verificados; que las causales sean las de trato directo del reglamento de compras es inferido del texto'
+  EsTratoDirecto:
+    desc: 'Valores "Si" o "No": indica si la orden es trato directo.'
+    usar: 'Trato directo = EsTratoDirecto = ''Si'' (18.696 líneas).'
+    ojo: 'Nulo en casi todas las compras ágiles (105.767 de 105.772 líneas). NOT IN o <> ''Si'' excluyen esos nulos; usar IS DISTINCT FROM ''Si'' si se quiere "no trato directo".'
+    estado: verificada
+    consulta: 'SELECT EsTratoDirecto, EsCompraAgil, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: 'No, No, 224980; None, Si, 105767; Si, No, 18691; Si, Si, 5'
+  EsCompraAgil:
+    desc: "Valores 'Si' o 'No': indica si es compra ágil (procedimiento para compras de hasta 100 UTM con al menos tres cotizaciones). Equivale a Tipo = 'AG'."
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE (EsCompraAgil=''Si'') IS DISTINCT FROM (Tipo=''AG'')) FROM oc_lineas'
+    resultado: '0'
+    fuente: 'Ley 19.886 art. 7 n.º 1 y Decreto 661 art. 97 (corpus data/docs/chunks.jsonl): hasta 100 UTM, previa solicitud de al menos tres cotizaciones. El umbral de 30 UTM NO aplica a la compra ágil; sobrevive solo como causal de trato directo de alto impacto social.'
+  CodigoLicitacion:
+    desc: 'Código de la licitación o proceso que originó la orden. Nunca es NULL, pero es cadena vacía en el 57 % de las líneas (200.253); solo 61.526 de 131.742 órdenes tienen código (24.444 valores distintos contando el vacío).'
+    ojo: 'Hay órdenes con código que NO son licitación pública (348 órdenes) y licitaciones públicas sin código (1.542); no sirve para identificar licitaciones públicas. Usar ProcedenciaOC. Filtrar por CodigoLicitacion <> '', no por IS NOT NULL.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE CodigoLicitacion=''''), count(*) FILTER (WHERE CodigoLicitacion IS NULL), count(DISTINCT Codigo) FILTER (WHERE CodigoLicitacion<>'''') FROM oc_lineas'
+    resultado: '200253, 0, 61526'
+  Codigo_ConvenioMarco:
+    desc: 'Código del convenio marco usado (solo 16 valores; 19,4 % de las líneas).'
+    usar: 'Nulo si la orden no es de convenio marco.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE (Codigo_ConvenioMarco IS NOT NULL) <> (Tipo=''CM'')) FROM oc_lineas'
+    resultado: '0'
+  CodigoProyectoPlanAnualCompras:
+    desc: 'Código del ítem del plan anual de compras al que pertenece la orden (39,7 % de las líneas).'
+    estado: parcial
+    consulta: 'SELECT round(100.0*count(CodigoProyectoPlanAnualCompras)/count(*),1) FROM oc_lineas'
+    resultado: '39.7'
+    por_validar: 'porcentaje de llenado verificado; que sea un ítem del plan anual de compras es inferido del nombre'
+
+  # ---------- estado y fechas ----------
+  codigoEstado:
+    desc: 'Código del estado de la orden (12=Recepción Conforme, 6=Aceptada, 4=Enviada a proveedor, 7=Cancelación solicitada, 5=En proceso).'
+    estado: verificada
+    consulta: 'SELECT codigoEstado, Estado, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: '12, Recepcion Conforme, 272493; 6, Aceptada, 74426; 4, Enviada a proveedor, 2102; 7, Cancelacion solicitada, 320; 5, En proceso, 102'
+  Estado:
+    desc: 'Estado de la orden desde el punto de vista del comprador.'
+    valores: {Recepcion Conforme: 272.493 líneas, Aceptada: 74.426, Enviada a proveedor: 2.102, Cancelacion solicitada: 320, En proceso: 102}
+    usar: 'Es la señal correcta para "canceladas" (Estado = ''Cancelacion solicitada'') y para "recibidas" (Estado = ''Recepcion Conforme'').'
+    ojo: 'Los valores no llevan tilde (''Recepcion'', ''Cancelacion''). El conteo "cuánto se compró" depende de qué estados se incluyan; ver reglas_de_negocio.'
+    estado: supuesto documentado
+    consulta: 'SELECT Estado, EstadoProveedor, count(*) lineas, count(DISTINCT Codigo) ordenes FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: 'Recepcion Conforme, Recepcion Conforme, 272493, 100590; Aceptada, Aceptada, 73874, 29322; Enviada a proveedor, Nueva orden de compra, 2102, 1314; Aceptada, Cancelacion solicitada, 552, 314; Cancela...'
+    regla_adoptada: 'Equivalencias 1:1 verificadas: Recepcion Conforme, Aceptada, En proceso y Enviada a proveedor = Nueva orden de compra. Las únicas discrepancias (893 líneas, 470 órdenes) tienen "Cancelacion solicitada" en un solo lado: Estado=Cancelacion solicitada con EstadoProveedor=Aceptada (320 líneas, 149 órdenes); EstadoProveedor=Cancelacion solicitada con Estado=Aceptada (552, 314) o En proceso (21, 7). Supuesto: es una solicitud pendiente de aceptación de la contraparte. "Cancelada" = Estado O EstadoProveedor = Cancelacion solicitada (470 órdenes), no solo Estado (149). Ninguna implica cancelación efectiva (FechaCancelacion casi vacía).'
+  codigoEstadoProveedor:
+    desc: 'Código del estado según el proveedor (7=Recepción Conforme, 4=Aceptada, 1=Nueva orden de compra, 3=Cancelación solicitada, 2=En proceso).'
+    estado: verificada
+    consulta: 'SELECT codigoEstadoProveedor, EstadoProveedor, count(*) FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: '7, Recepcion Conforme, 272493; 4, Aceptada, 74194; 1, Nueva orden de compra, 2102; 3, Cancelacion solicitada, 573; 2, En proceso, 81'
+  EstadoProveedor:
+    desc: 'Estado de la orden desde el punto de vista del proveedor. Casi igual a Estado; "Nueva orden de compra" equivale a "Enviada a proveedor".'
+    ojo: 'Puede diferir de Estado (ver ''Cancelacion solicitada'' 573 vs 320 líneas).'
+    estado: supuesto documentado
+    consulta: 'SELECT Estado, EstadoProveedor, count(*) lineas, count(DISTINCT Codigo) ordenes FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: 'Recepcion Conforme, Recepcion Conforme, 272493, 100590; Aceptada, Aceptada, 73874, 29322; Enviada a proveedor, Nueva orden de compra, 2102, 1314; Aceptada, Cancelacion solicitada, 552, 314; Cancela...'
+    regla_adoptada: 'Ver Estado: la solicitud de cancelación puede aparecer solo aquí (321 órdenes). Para "canceladas" combinar ambas columnas.'
+  FechaCreacion:
+    desc: 'Fecha de creación de la orden (rango 2022-09 a 2026-01).'
+    ojo: 'Puede ser anterior a 2026-01 aunque el archivo sea de enero: la orden se creó antes y se envió en enero.'
+    estado: verificada
+    consulta: 'SELECT min(FechaCreacion), max(FechaCreacion), count(*) FILTER (WHERE FechaCreacion<''2026-01-01'') FROM oc_lineas'
+    resultado: '2022-09-13, 2026-01-31, 41150'
+  FechaEnvio:
+    desc: 'Fecha de envío al proveedor; el archivo contiene solo órdenes enviadas en enero de 2026.'
+    usar: 'Para "este mes" / "en enero" filtrar por FechaEnvio.'
+    estado: verificada
+    consulta: 'SELECT min(FechaEnvio), max(FechaEnvio) FROM oc_lineas'
+    resultado: '2026-01-01, 2026-01-31'
+  FechaSolicitudCancelacion:
+    desc: 'Fecha en que se registró una solicitud de cancelación.'
+    ojo: 'Está llena en el 91 % de las líneas, también en órdenes recibidas conforme. NO significa "orden con cancelación solicitada"; usar Estado.'
+    estado: verificada
+    consulta: 'SELECT Estado, round(100.0*count(FechaSolicitudCancelacion)/count(*),1) FROM oc_lineas GROUP BY 1 ORDER BY 2'
+    resultado: 'En proceso, 76.5; Cancelacion solicitada, 87.2; Aceptada, 91.0; Recepcion Conforme, 91.4; Enviada a proveedor, 97.8'
+  fechaUltimaModificacion:
+    desc: 'Fecha de la última modificación del registro (hasta octubre de 2026). Es metadato de la extracción.'
+    estado: parcial
+    consulta: 'SELECT min(fechaUltimaModificacion), max(fechaUltimaModificacion) FROM oc_lineas'
+    resultado: '2025-03-04, 2026-10-24'
+    por_validar: 'rango verificado; que sea metadato de la extracción es inferido'
+  FechaAceptacion:
+    desc: 'Fecha en que el proveedor aceptó la orden (99,4 % llena).'
+    estado: parcial
+    consulta: 'SELECT round(100.0*count(FechaAceptacion)/count(*),1) FROM oc_lineas'
+    resultado: '99.4'
+    por_validar: 'llenado verificado; significado inferido del nombre'
+  FechaCancelacion:
+    desc: 'Fecha de cancelación efectiva.'
+    ojo: 'Prácticamente vacía (6 líneas); no sirve para contar cancelaciones.'
+    estado: verificada
+    consulta: 'SELECT count(FechaCancelacion) FROM oc_lineas'
+    resultado: '6'
+
+  # ---------- montos de la orden (se repiten en cada línea) ----------
+  MontoTotalOC:
+    desc: 'Monto total de la orden en su moneda (TipoMonedaOC), con impuestos. Es el "monto total".'
+    usar: 'Deduplicar por orden antes de sumar. Para comparar entre monedas usar MontoTotalOC_PesosChilenos.'
+    ojo: |
+      (1) Se repite en cada línea de la orden: sumarlo directo sobreestima ~2,2 veces.
+      (2) Es NULO en 48.716 órdenes (37 %); una suma ignora esas órdenes sin avisar.
+      Informar siempre cuántas órdenes quedan fuera.
+    estado: verificada
+    consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
+    resultado: '82604, 82604'
+    regla_adoptada: 'Identidad verificada en todas las órdenes con los cinco campos: MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos. MontoTotalOC es el total con impuestos, descuentos y cargos. No se reconstruye cuando es NULL (solo 16 de 44.934 órdenes sin monto tienen todos los campos).'
+  TipoMonedaOC:
+    desc: 'Moneda de la orden (CLP, CLF=UF, USD, UTM, EUR). 99 % es CLP.'
+    estado: verificada
+    consulta: 'SELECT TipoMonedaOC, count(*), count(MontoTotalOC_PesosChilenos) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC'
+    resultado: 'CLP, 347288, 178486; CLF, 1224, 4; USD, 882, 0; UTM, 40, 1; EUR, 9, 0'
+  MontoTotalOC_PesosChilenos:
+    desc: 'MontoTotalOC convertido a pesos chilenos.'
+    usar: 'Única columna de monto de orden comparable entre monedas.'
+    cobertura: 'Solo está poblada para CLP (178.486 de 347.288 líneas) y, casi nunca, para CLF (4 de 1.224) y UTM (1 de 40); es NULL para todo USD y EUR. Una suma en pesos omite esas órdenes sin avisar.'
+    ojo: 'Mismo problema de repetición por línea y mismos nulos que MontoTotalOC.'
+    estado: verificada
+    consulta: 'SELECT TipoMonedaOC, count(*), count(MontoTotalOC_PesosChilenos) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC'
+    resultado: 'CLP, 347288, 178486; CLF, 1224, 4; USD, 882, 0; UTM, 40, 1; EUR, 9, 0'
+  Impuestos:
+    desc: 'Impuestos de la orden (IVA u otros).'
+    ojo: 'Nulo en casi la mitad de las líneas; se repite por línea.'
+    estado: verificada
+    consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
+    resultado: '82604, 82604'
+    regla_adoptada: 'Término de la identidad MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos (verificada).'
+  TipoImpuesto:
+    desc: 'Tipo de impuesto (IVA, Exento, Honorarios con distintas tasas, Zona Franca).'
+    estado: verificada
+    consulta: 'SELECT TipoImpuesto, count(*) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC'
+    resultado: 'IVA, 325799; Exento, 22033; Honorarios (15,25%), 1485; Honorarios (14,5%), 60; Zona Franca, 54; Honorarios Beneficio SII (18,25%), 11'
+  PorcentajeIva:
+    desc: 'Porcentaje de IVA aplicado (0 o 19; nulo en 1.573 líneas).'
+    estado: verificada
+    consulta: 'SELECT PorcentajeIva, count(*) FROM oc_lineas GROUP BY 1'
+    resultado: '0.0, 22071; None, 1573; 19.0, 325799'
+  Descuentos:
+    desc: 'Descuentos totales de la orden.'
+    estado: verificada
+    consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
+    resultado: '82604, 82604'
+    regla_adoptada: 'Se RESTA en la identidad MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos (verificada).'
+  Cargos:
+    desc: 'Cargos adicionales totales de la orden.'
+    estado: verificada
+    consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
+    resultado: '82604, 82604'
+    regla_adoptada: 'Se SUMA en la identidad MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos (verificada).'
+  TotalNetoOC:
+    desc: 'Total neto de la orden (sin impuestos) en su moneda.'
+    usar: 'Alternativa cuando MontoTotalOC es nulo, aclarando que es neto.'
+    ojo: 'Se repite por línea; nulo en 4.201 órdenes. NO es "monto total" salvo que el usuario pida neto.'
+    estado: verificada
+    consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
+    resultado: '82604, 82604'
+    regla_adoptada: 'Es el neto ANTES de descuentos y cargos (MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos). Usarlo solo si el usuario pide neto; no como sustituto del monto total.'
+
+  # ---------- comprador ----------
+  CodigoUnidadCompra:
+    desc: 'Código de la unidad de compra (3.853), la oficina concreta que compra.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT CodigoUnidadCompra) FROM oc_lineas'
+    resultado: '3853'
+  RutUnidadCompra:
+    desc: 'RUT de la unidad de compra.'
+    estado: inferida
+    por_validar: 'no perfilado'
+  UnidadCompra:
+    desc: 'Nombre de la unidad de compra (3.093). Algunos nombres son genéricos (p. ej. "Municipalidad").'
+    ojo: 'Distintas unidades pueden compartir nombre; no usarlo para contar compradores.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT UnidadCompra) FROM oc_lineas'
+    resultado: '3093'
+  CodigoOrganismoPublico:
+    desc: 'Código del organismo público comprador (1.110). Es la clave correcta para contar organismos.'
+    usar: 'Contar organismos con COUNT(DISTINCT CodigoOrganismoPublico).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT CodigoOrganismoPublico) FROM oc_lineas'
+    resultado: '1110'
+  OrganismoPublico:
+    desc: 'Nombre del organismo (1.097 nombres para 1.110 códigos).'
+    ojo: 'Contar por nombre da menos que por código. Buscar con ILIKE y variantes (''I MUNICIPALIDAD DE TEMUCO'', ''ILUSTRE MUNICIPALIDAD DE ...'').'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT OrganismoPublico), count(DISTINCT CodigoOrganismoPublico) FROM oc_lineas'
+    resultado: '1097, 1110'
+  sector:
+    desc: 'Sector del comprador. Nombre en minúscula.'
+    valores: 'Salud, Municipalidades, "Gob. Central, Universidades", FFAA, Otros, Obras Públicas, Legislativo y judicial'
+    ojo: 'Nulo en 7.716 líneas (169 organismos); excluirlo de rankings o mostrarlo como "sin sector".'
+    estado: verificada
+    consulta: 'SELECT sector, count(*) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC'
+    resultado: 'Salud, 171158; Municipalidades, 85192; Gob. Central, Universidades, 41121; FFAA, 33536; None, 7716; Otros, 7401'
+  ActividadComprador:
+    desc: 'Giro o actividad económica del comprador (715 valores). Puede venir vacío ('''').'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT ActividadComprador), count(*) FILTER (WHERE ActividadComprador='''') FROM oc_lineas'
+    resultado: '715, 67209'
+  CiudadUnidadCompra:
+    desc: 'Ciudad de la unidad de compra.'
+    estado: inferida
+    por_validar: 'no perfilado'
+  RegionUnidadCompra:
+    desc: 'Región de la unidad de compra (p. ej. ''Región del Maule '').'
+    ojo: 'Con espacio al final y 32 variantes; usar TRIM e ILIKE.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT RegionUnidadCompra) FROM oc_lineas'
+    resultado: '32'
+  PaisUnidadCompra:
+    desc: 'Campo poco fiable. Valores: ''CL'' (207.613 líneas), ''Extranjero'' (124.445), nulo (15.978), cadena vacía (381) y dos espacios (1.026). Ver regla_adoptada.'
+    estado: verificada
+    consulta: 'SELECT PaisUnidadCompra, Tipo IN (''AG'',''TD'') AS es_ag_td, count(*), count(PaisProveedor) AS con_pais_prov FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC'
+    resultado: 'CL, False, 207613, 202819; Extranjero, True, 124445, 0; None, False, 15978, 15579;   , False, 1026, 996; , False, 381, 381'
+    regla_adoptada: 'No usar para filtrar ni agrupar por país. "Extranjero" coincide exactamente con las líneas Tipo AG o TD (124.445 = 105.772 + 18.673), PaisProveedor es NULL en todas ellas y la región/ciudad son siempre chilenas: es un artefacto del tipo de orden, no la nacionalidad del comprador. Se asume que todos los compradores son chilenos.'
+  Pais:
+    desc: 'Igual a PaisUnidadCompra pero con cadenas vacías en lugar de nulos. Redundante.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE Pais IS DISTINCT FROM coalesce(PaisUnidadCompra,'''')) FROM oc_lineas'
+    resultado: '0'
+    regla_adoptada: 'Misma regla que PaisUnidadCompra: no usar para filtrar por país.'
+
+  # ---------- proveedor ----------
+  CodigoSucursal:
+    desc: 'Código de la sucursal del proveedor.'
+    estado: inferida
+    por_validar: 'solo se conoce el recuento de distintos (20.827)'
+  RutSucursal:
+    desc: 'RUT de la sucursal (puede ser el RUT personal de un proveedor persona natural).'
+    ojo: 'Dato personal posible; no mostrarlo en respuestas.'
+    estado: supuesto documentado
+    consulta: 'WITH r AS (SELECT CodigoProveedor, try_cast(replace(split_part(any_value(RutSucursal),''-'',1),''.'','''') AS BIGINT) num FROM oc_lineas GROUP BY 1) SELECT count(*) proveedores, count(*) FILTER (WHERE num<50000000) lt50m, count(*) FILTER (WHERE num>=50000000) ge50m, count(*) FILTER (WHERE num IS NULL) sin_rut FROM r'
+    resultado: '20513, 6136, 14360, 17'
+    regla_adoptada: 'Persona natural supuesta = número del RUT (sin puntos ni dígito verificador) < 50.000.000; >= 50.000.000 se asume persona jurídica (convención de asignación del SII, conocimiento externo no contenido en los datos). Evidencia: 6.136 de 20.513 proveedores (30 %), 9,9 % de las líneas y 5,5 % del gasto en CLP; solo 16 de esos 6.136 nombres llevan marca societaria (SPA, LTDA, EIRL, S.A.). 17 proveedores sin RUT interpretable (nulo, 120 líneas, u otro formato, 24): tratarlos como no clasificables y enmascarar por precaución. 4 proveedores tienen más de un RutSucursal.'
+  Sucursal:
+    desc: 'Nombre de la sucursal del proveedor; a veces es el RUT sin puntos.'
+    estado: parcial
+    consulta: 'SELECT count(*) FILTER (WHERE regexp_matches(Sucursal,''^[0-9.]+-?[0-9kK]$'')) FROM oc_lineas'
+    resultado: '403'
+    por_validar: '403 líneas tienen forma de RUT (verificado); el resto es nombre inferido'
+  CodigoProveedor:
+    desc: 'Código del proveedor (20.513). Es la clave correcta para contar proveedores.'
+    usar: 'COUNT(DISTINCT CodigoProveedor).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT CodigoProveedor) FROM oc_lineas'
+    resultado: '20513'
+  NombreProveedor:
+    desc: 'Razón social o nombre del proveedor; para personas naturales es el nombre propio.'
+    ojo: 'Dato personal en personas naturales; enmascarar en respuestas que listen proveedores individuales.'
+    estado: supuesto documentado
+    consulta: 'WITH r AS (SELECT CodigoProveedor, try_cast(replace(split_part(any_value(RutSucursal),''-'',1),''.'','''') AS BIGINT) num FROM oc_lineas GROUP BY 1) SELECT count(*) proveedores, count(*) FILTER (WHERE num<50000000) lt50m, count(*) FILTER (WHERE num>=50000000) ge50m, count(*) FILTER (WHERE num IS NULL) sin_rut FROM r'
+    resultado: '20513, 6136, 14360, 17'
+    regla_adoptada: 'Enmascarar cuando el RUT del proveedor sea < 50.000.000 o no interpretable (ver RutSucursal). La clasificación debe derivarse al cargar los datos (columna calculada), porque RutSucursal está bloqueada en el verificador SQL. Pendiente en el guardrail de salida.'
+  ActividadProveedor:
+    desc: 'Giro del proveedor (7.984 valores, texto libre).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT ActividadProveedor) FROM oc_lineas'
+    resultado: '7984'
+  ComunaProveedor:
+    desc: 'Comuna del proveedor.'
+    estado: inferida
+    por_validar: 'no perfilado'
+  RegionProveedor:
+    desc: 'Región del proveedor (''Región de Coquimbo '').'
+    ojo: 'Nulo en 19 % de las líneas; 87 variantes con espacios al final.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT RegionProveedor), round(100.0*count(*) FILTER (WHERE RegionProveedor IS NULL)/count(*),1) FROM oc_lineas'
+    resultado: '87, 19.4'
+  PaisProveedor:
+    desc: 'País del proveedor.'
+    ojo: 'Mezcla ''Chile'' y ''CL'', más nulos y vacíos (37 % nulo o vacío). Contar nacionales con IN (''Chile'',''CL'').'
+    estado: verificada
+    consulta: 'SELECT PaisProveedor, count(*) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC LIMIT 5'
+    resultado: 'Chile, 144281; None, 129668; CL, 64074; , 11412; Uruguay, 4'
+  PromedioCalificacion:
+    desc: 'Calificación promedio del proveedor (0 a 5).'
+    ojo: 'Nulo en 36 % de las líneas.'
+    estado: verificada
+    consulta: 'SELECT min(PromedioCalificacion), max(PromedioCalificacion), round(100.0*count(*) FILTER (WHERE PromedioCalificacion IS NULL)/count(*),1) FROM oc_lineas'
+    resultado: '0.0, 5.0, 35.7'
+  CantidadEvaluacion:
+    desc: 'Número de evaluaciones recibidas por el proveedor.'
+    estado: parcial
+    consulta: 'SELECT count(*) FILTER (WHERE CantidadEvaluacion IS NULL), min(CantidadEvaluacion), max(CantidadEvaluacion) FROM oc_lineas'
+    resultado: '0, 0.0, 553.0'
+    por_validar: 'sin nulos verificado; significado inferido'
+
+  # ---------- condiciones ----------
+  Financiamiento:
+    desc: 'Texto o código presupuestario del financiamiento (17.374 valores, a menudo vacío).'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE Financiamiento IS NULL), count(*) FILTER (WHERE Financiamiento = ''''), count(DISTINCT Financiamiento) FROM oc_lineas'
+    resultado: '11, 169722, 17374'
+  TipoDespacho:
+    desc: 'Código del tipo de despacho (7 y 12 son los más frecuentes).'
+    ojo: 'Solo códigos, sin tabla de equivalencias disponible; no interpretar sin diccionario.'
+    estado: verificada
+    consulta: 'SELECT TipoDespacho, count(*) FROM oc_lineas GROUP BY 1 ORDER BY 2 DESC LIMIT 3'
+    resultado: '7, 207775; 12, 122561; 22, 11482'
+    por_validar: 'sin diccionario de códigos'
+  FormaPago:
+    desc: 'Código de forma de pago (2 = 30 días contra la recepción conforme de la factura, 98 % de las líneas).'
+    estado: verificada
+    consulta: 'SELECT FormaPago, "Forma de Pago", count(*) FROM oc_lineas GROUP BY ALL ORDER BY 3 DESC LIMIT 3'
+    resultado: '2, 30 dias contra la recepcion conforme de la factura, 341168; 48, None, 5379; 39, Otro, Ver Instrucciones, 1733'
+  "Forma de Pago":
+    desc: 'Texto de la forma de pago (''30 dias contra la recepcion conforme de la factura'', ''Otro, Ver Instrucciones'').'
+    ojo: 'Coexiste con FormaPago (código). Nombre con espacios; comillas dobles.'
+    estado: verificada
+    consulta: 'SELECT count(*) FROM (SELECT FormaPago FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT "Forma de Pago")>1)'
+    resultado: '0'
+
+  # ---------- línea de producto ----------
+  IDItem:
+    desc: 'Identificador de la línea (único; 349.443 valores).'
+    usar: 'Clave de la tabla; COUNT(*) cuenta líneas.'
+    estado: verificada
+    consulta: 'SELECT count(*), count(DISTINCT IDItem) FROM oc_lineas'
+    resultado: '349443, 349443'
+  tieneItems:
+    desc: 'Siempre ''1''. Sin información.'
+    estado: verificada
+    consulta: 'SELECT DISTINCT tieneItems FROM oc_lineas'
+    resultado: '1'
+  codigoCategoria:
+    desc: 'Código de categoría UNSPSC de la línea.'
+    ojo: 'Nulo en 19 % de las líneas, mientras Categoria viene como cadena vacía.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE codigoCategoria IS NULL), count(*) FILTER (WHERE codigoCategoria = ''''), count(DISTINCT codigoCategoria) FROM oc_lineas'
+    resultado: '67704, 0, 1663'
+  Categoria:
+    desc: 'Nombre de la categoría UNSPSC (1.664 valores).'
+    ojo: 'Las líneas sin categoría tienen '''' (cadena vacía), no NULL.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE Categoria IS NULL), count(*) FILTER (WHERE Categoria = ''''), count(DISTINCT Categoria) FROM oc_lineas'
+    resultado: '0, 67704, 1664'
+  codigoProductoONU:
+    desc: 'Código UNSPSC del producto (8.599 valores).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT codigoProductoONU) FROM oc_lineas'
+    resultado: '8599'
+  NombreroductoGenerico:
+    desc: 'Nombre genérico del producto (el nombre real tiene el typo "Nombreroducto").'
+    usar: 'Búsqueda de productos con ILIKE.'
+    ojo: 'Nombre con typo; usar tal cual.'
+    estado: parcial
+    consulta: 'SELECT count(DISTINCT NombreroductoGenerico) FROM oc_lineas'
+    resultado: '33126'
+    por_validar: 'el typo del nombre de columna es real (verificado con DESCRIBE); significado inferido'
+  RubroN1:
+    desc: 'Rubro nivel 1 (58 valores, el más general).'
+    ojo: 'Nulo en 19 % de las líneas. Para combustibles, buscar con ILIKE en RubroN1/RubroN2/RubroN3 y revisar los valores reales.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE RubroN1 IS NULL), count(*) FILTER (WHERE RubroN1 = ''''), count(DISTINCT RubroN1) FROM oc_lineas'
+    resultado: '67704, 0, 58'
+  RubroN2:
+    desc: 'Rubro nivel 2 (335 valores).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT RubroN2) FROM oc_lineas'
+    resultado: '335'
+  RubroN3:
+    desc: 'Rubro nivel 3 (el más específico, 1.664 valores).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT RubroN3) FROM oc_lineas'
+    resultado: '1664'
+  EspecificacionComprador:
+    desc: 'Texto libre con lo que pidió el comprador (258.739 valores).'
+    ojo: 'Puede contener datos personales o de contacto; no devolverlo en bruto.'
+    estado: parcial
+    consulta: 'SELECT count(DISTINCT EspecificacionComprador) FROM oc_lineas'
+    resultado: '258739'
+    por_validar: 'que contenga datos personales es una precaución, no un hallazgo'
+  EspecificacionProveedor:
+    desc: 'Texto libre con lo que ofertó el proveedor (84,2 % no nulo; 75,3 % con texto no vacío).'
+    ojo: 'Puede contener datos personales; no devolverlo en bruto.'
+    estado: parcial
+    consulta: 'SELECT round(100.0*count(EspecificacionProveedor)/count(*),1), round(100.0*count(*) FILTER (WHERE EspecificacionProveedor<>'''')/count(*),1) FROM oc_lineas'
+    resultado: '84.2, 75.3'
+    por_validar: 'que contenga datos personales es una precaución, no un hallazgo'
+  cantidad:
+    desc: 'Cantidad pedida de la línea.'
+    ojo: 'Rango enorme (hasta 1.700 millones); las unidades varían (UnidadMedida), no sumar cantidades de productos distintos.'
+    estado: verificada
+    consulta: 'SELECT min(cantidad), max(cantidad) FROM oc_lineas'
+    resultado: '0.0, 1728527000.0'
+  UnidadMedida:
+    desc: 'Unidad de medida de la línea (94 valores, p. ej. ''Global'').'
+    ojo: 'Nulo en 19 % de las líneas.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT UnidadMedida), round(100.0*count(*) FILTER (WHERE UnidadMedida IS NULL)/count(*),1) FROM oc_lineas'
+    resultado: '94, 19.4'
+  monedaItem:
+    desc: 'Moneda de la línea. Casi siempre igual a TipoMonedaOC (difiere en 14 líneas).'
+    usar: 'Al sumar totalLineaNeto, restringir a una moneda (monedaItem = ''CLP'') o informarlo.'
+    estado: verificada
+    consulta: 'SELECT count(*) FROM oc_lineas WHERE monedaItem IS DISTINCT FROM TipoMonedaOC'
+    resultado: '14'
+  precioNeto:
+    desc: 'Precio unitario neto de la línea, en monedaItem.'
+    estado: inferida
+    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+  totalCargos:
+    desc: 'Cargos de la línea.'
+    estado: inferida
+    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+  totalDescuentos:
+    desc: 'Descuentos de la línea.'
+    estado: inferida
+    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+  totalImpuestos:
+    desc: 'Impuestos de la línea; solo 0 o pocos valores.'
+    ojo: 'Nulo en 36 % de las líneas; no confundir con Impuestos (orden).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT totalImpuestos), min(totalImpuestos), max(totalImpuestos), round(100.0*count(*) FILTER (WHERE totalImpuestos IS NULL)/count(*),1) FROM oc_lineas'
+    resultado: '2, 0.0, 51.0, 35.6'
+  totalLineaNeto:
+    desc: 'Total neto de la línea ≈ cantidad × precioNeto − totalDescuentos + totalCargos (se cumple en el 99,5 % de las líneas con valor).'
+    usar: 'Columna correcta para gasto por producto, rubro, categoría o proveedor.'
+    ojo: 'Nulo en 6.461 líneas (1,8 %) y negativo en 37; está en monedaItem.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE totalLineaNeto IS NULL), count(*) FILTER (WHERE totalLineaNeto<0), round(100.0*count(*) FILTER (WHERE abs(totalLineaNeto-(cantidad*precioNeto-totalDescuentos+totalCargos))<=1)/count(*) FILTER (WHERE totalLineaNeto IS NOT NULL),2) FROM oc_lineas'
+    resultado: '6461, 37, 99.51'
+
+  # ---------- técnicas ----------
+  archivo_origen:
+    desc: 'Archivo de origen de la carga (''2026-1''). Constante; sin información.'
+    estado: verificada
+    consulta: 'SELECT DISTINCT archivo_origen FROM oc_lineas'
+    resultado: '2026-1'
+
+  # ---------- derivadas (calculadas en scripts/load_data.py, no vienen del archivo fuente) ----------
+  es_persona_natural:
+    desc: 'Marca calculada al cargar: TRUE si el número del RUT de RutSucursal (sin puntos ni dígito verificador) es < 50.000.000; NULL si el RUT no se puede interpretar (123 líneas, 41 proveedores).'
+    usar: 'Seleccionarla junto a NombreProveedor: el guardrail de salida enmascara el nombre cuando es TRUE o NULL, y también cuando la columna falta en el resultado.'
+    estado: supuesto documentado
+    regla_adoptada: 'Ver RutSucursal. Resultado en los datos actuales: 34.553 líneas TRUE (6.136 proveedores), 314.767 FALSE (14.360), 123 NULL.'
+    consulta: 'SELECT es_persona_natural, count(*), count(DISTINCT CodigoProveedor) FROM oc_lineas GROUP BY 1'
+    resultado: 'False, 314767, 14360; None, 123, 41; True, 34553, 6136'
+
+reglas_de_negocio:
+  - tema: 'Estados de la orden'
+    regla: 'Estado tiene cinco valores: Recepcion Conforme (272.493 líneas), Aceptada (74.426), Enviada a proveedor (2.102), Cancelacion solicitada (320) y En proceso (102). Sin tilde. EstadoProveedor difiere (Aceptada 74.194, Cancelacion solicitada 573).'
+  - tema: 'Cuánto se compró'
+    regla: 'El total de una orden es MontoTotalOC_PesosChilenos, contado una vez por orden. Hay que decir qué estados se incluyen (todos, o solo ''Aceptada'' y ''Recepcion Conforme'') y cuántas órdenes no tienen monto (48.716).'
+  - tema: 'Gasto por producto, rubro o proveedor'
+    regla: 'SUM(totalLineaNeto) con monedaItem = ''CLP''. No usar los montos de orden.'
+  - tema: 'Licitación pública'
+    regla: 'ProcedenciaOC = ''Proveniente de licitación pública'' (no CodigoLicitacion).'
+  - tema: 'Trato directo'
+    regla: 'EsTratoDirecto = ''Si'' (o Tipo = ''TD''). Las compras ágiles tienen EsTratoDirecto nulo.'
+  - tema: 'Contar compradores y proveedores'
+    regla: 'Por CodigoOrganismoPublico y CodigoProveedor, no por nombre.'
+  - tema: 'Órdenes canceladas'
+    regla: 'Estado = ''Cancelacion solicitada'' OR EstadoProveedor = ''Cancelacion solicitada'' (470 órdenes; solo Estado da 149). Es una solicitud, no una cancelación efectiva. No usar FechaSolicitudCancelacion ni FechaCancelacion.'
+  - tema: 'Período de los datos'
+    regla: 'Solo órdenes enviadas en enero de 2026 (FechaEnvio). No hay datos de otros meses; preguntas sobre otros períodos o años no son respondibles.'
+  - tema: 'Datos personales'
+    regla: 'Nombres de proveedores personas naturales, RutSucursal y los textos libres de especificaciones se enmascaran o no se devuelven en bruto. Persona natural supuesta: RUT < 50.000.000 o no interpretable (ver RutSucursal).'
+  - tema: 'Monto total, neto, impuestos'
+    regla: 'MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos (verificado en las 82.604 órdenes con todos los campos). Si MontoTotalOC es NULL no se reconstruye.'
+  - tema: 'País del comprador'
+    regla: 'No filtrar por PaisUnidadCompra: ''Extranjero'' es un artefacto de las órdenes AG y TD. Todos los compradores son chilenos.'
+  - tema: 'Compra ágil'
+    regla: 'Hasta 100 UTM con al menos tres cotizaciones (Ley 19.886 art. 7 n.º 1; Decreto 661 art. 97). No son 30 UTM.'
+  - tema: 'Los montos son compromisos'
+    regla: 'Son órdenes de compra, no pagos efectuados; no responder "cuánto se pagó".'
