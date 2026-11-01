@@ -2,10 +2,12 @@
 name = "text2sql-rag-analyst"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["sqlglot>=25", "pyyaml>=6", "duckdb", "fastapi>=0.110", "uvicorn>=0.29"]
+dependencies = ["sqlglot>=25", "pyyaml>=6", "duckdb", "numpy", "fastapi>=0.110", "uvicorn>=0.29"]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx>=0.27"]
+# Real dense retriever (pulls torch, ~2 GB). Install with: UV_TORCH_BACKEND=cpu uv sync --group rag
+rag = ["sentence-transformers>=3"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

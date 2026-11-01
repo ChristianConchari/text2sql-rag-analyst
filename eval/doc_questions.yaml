@@ -29,3 +29,12 @@
 - {id: d23, question: "¿Qué deben tener los proveedores para prevenir faltas de integridad?", gold: ["Decreto 661|Artículo 17"]}
 - {id: d24, question: "¿Qué es el manual de procedimientos de adquisiciones y quién lo prepara?", gold: ["Decreto 661|Artículo 6"]}
 - {id: d25, question: "¿Cómo define el reglamento términos como oferente, bases o adjudicación?", gold: ["Decreto 661|Artículo 4"]}
+
+# Out-of-corpus questions (`out_of_corpus: true`, no gold): the correct behaviour is "no evidence", never an answer.
+# Mix of unrelated, neighbouring-domain and data questions (the latter belong to the SQL route). Skipped by
+# scripts/eval_retrieval.py (no gold); used by scripts/eval_doc_route.py.
+- {id: x01, question: "¿Cuál es la capital de Australia?", out_of_corpus: true}
+- {id: x02, question: "¿Cuántos días de vacaciones corresponden a un trabajador con contrato indefinido?", out_of_corpus: true}
+- {id: x03, question: "¿Cómo se calcula el impuesto de primera categoría de una empresa?", out_of_corpus: true}
+- {id: x04, question: "¿Qué exige la normativa de compras públicas de Argentina a los proveedores extranjeros?", out_of_corpus: true}
+- {id: x05, question: "¿Cuál fue el monto total comprado por los organismos de salud durante enero de 2026?", out_of_corpus: true}

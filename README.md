@@ -4,13 +4,14 @@ Final project for *Procesamiento de Lenguaje Natural III* (Master of AI, FIUBA /
 
 The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation design and measurements are documented by the project authors outside this repository.
 
-**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. Document retrieval (RAG) is not wired into the pipeline yet, and the real model has not been run end to end.
+**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. The document route (dense retrieval with bge-m3, answers with verified article citations) is wired in and tested against a fake LLM; the real chat model has not been run end to end. There is no mixed route yet (figures + legal text in one question): the router sends each question to one tool.
 
 ## Quick start (fresh clone)
 
 ```bash
 uv sync                                          # Python >= 3.11; creates .venv
 uv run pytest -q                                 # the whole suite; needs no data and no model (it uses FakeLLM)
+UV_TORCH_BACKEND=cpu uv sync --group rag         # optional: torch + sentence-transformers for the real retriever (~2 GB)
 ```
 
 ## Run the system
@@ -53,7 +54,8 @@ curl -L "https://www.bcn.cl/leychile/Consulta/obtxml?opt=7&idNorma=213004"  -o d
 curl -L "https://www.bcn.cl/leychile/Consulta/obtxml?opt=7&idNorma=1209290" -o data/docs/bcn_1209290.xml
 python3 -I scripts/parse_bcn.py data/docs/bcn_213004.xml  data/docs/ley_19886.jsonl
 python3 -I scripts/parse_bcn.py data/docs/bcn_1209290.xml data/docs/decreto_661.jsonl
-python3 -I scripts/chunk_docs.py data/docs/ley_19886.jsonl data/docs/decreto_661.jsonl --out data/docs/chunks.jsonl
+python3 -I scripts/chunk_docs.py data/docs/ley_19886.jsonl data/docs/decreto_661.jsonl --out data/docs/chunks.jsonl \
+    --manifest data/docs/manifest.json                      # 530 chunks / 325 articles; hashes of the source files
 
 # 4. Retrieval comparison on CPU (first run downloads ~2 GB of models; embeddings are cached in data/cache/)
 UV_TORCH_BACKEND=cpu uv run scripts/eval_retrieval.py --misses
@@ -85,13 +87,18 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `configs/domain/chilecompra.yaml`, `domains/chilecompra/glossary.yaml` | domain policy (tables, limits, blocked columns) and column glossary with evidence status |
 | `eval/attack_cases.yaml`, `tests/unit/` | attack cases for the verifier and the pytest suite |
 | `docs/arquitectura.html` | architecture diagram page |
-| `src/rag/{retrievers,ingestion,evaluators}`, `src/vectorstore/chroma`, `src/common/telemetry` | empty on purpose: reserved for the document-retrieval (RAG) work and telemetry |
+| `src/rag/retrievers/` | `Retriever` interface, dense bge-m3 retriever (grouped by article, similarity threshold), embedding cache keyed by text hash + model, `HashEmbedder` for tests |
+| `src/rag/citations.py`, `src/rag/prompts/doc_prompt.py` | citation format `[Ley 19.886 art. 7]` and the answer prompt (fragments as DATA between delimiters) |
+| `src/policies/citation_verifier.py`, `src/agents/orchestration/doc_loop.py` | deterministic citation check and the answer loop (up to 3 retries, then decline) |
+| `configs/rag/retrieval.yaml`, `scripts/eval_doc_route.py` | retrieval settings (threshold) and the document-route evaluation |
+| `src/rag/{ingestion,evaluators}`, `src/vectorstore/chroma`, `src/common/telemetry` | empty on purpose: reserved |
 | `data/` | **git-ignored**: DuckDB file, law XML/PDF, chunks, embedding cache, logs |
 
 ## Pending
 
 - Move the ChileCompra column names out of the SQL prompt (`RutSucursal`, `NombreProveedor`, `es_persona_natural` in `src/rag/prompts/sql_prompt.py`) into the domain config. Deliberately postponed until the real model has been tried, because it changes what the model sees.
-- Wire document retrieval (RAG) into the pipeline; today the router's `docs` route answers `not_implemented`.
+- Mixed route (figures from the database + the legal basis in one answer) does not exist; the router picks one tool.
+- Re-calibrate `min_score` in `configs/rag/retrieval.yaml` when the model or corpus changes (provisional, small evaluation set).
 - Run the pipeline against the real model (Ollama) and check that the prompt fits the context window.
 
 ## Notes and cautions

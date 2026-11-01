@@ -95,7 +95,8 @@ def main() -> None:
     args = ap.parse_args()
 
     chunks = [json.loads(l) for l in (ROOT / "data/docs/chunks.jsonl").read_text(encoding="utf-8").splitlines()]
-    questions = yaml.safe_load((ROOT / "eval/doc_questions.yaml").read_text(encoding="utf-8"))
+    questions = [q for q in yaml.safe_load((ROOT / "eval/doc_questions.yaml").read_text(encoding="utf-8"))
+                 if not q.get("out_of_corpus")]   # out-of-corpus questions have no gold: see scripts/eval_doc_route.py
     cache = ROOT / "data" / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     print(f"{len(chunks)} chunks, {len(questions)} questions\n")

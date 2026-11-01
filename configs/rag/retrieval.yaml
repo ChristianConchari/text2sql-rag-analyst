@@ -1,0 +1,11 @@
+# Document retrieval (RAG over Ley 19.886 and Decreto 661).
+chunks_path: data/docs/chunks.jsonl
+cache_dir: data/cache
+model: BAAI/bge-m3
+k: 5                 # articles returned per query
+# Minimum cosine similarity of an article's best chunk. Below it, no passage is returned = "no evidence".
+# Provisional, calibrated on 25 in-corpus + 5 out-of-corpus questions with bge-m3 (scripts/eval_doc_route.py):
+# in-corpus top-1 >= 0.589, unrelated/data/other-domain out-of-corpus <= 0.541, so 0.57 sits in the gap (margin ~0.02).
+# A same-topic question about ANOTHER country scores 0.618 and passes: only the answer model can decline it.
+# Re-calibrate if the model, the corpus or the chunking changes.
+min_score: 0.57
