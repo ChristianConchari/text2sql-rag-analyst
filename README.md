@@ -2,7 +2,7 @@
 
 Final project for *Procesamiento de Lenguaje Natural III* (Master of AI, FIUBA / UBA). A conversational analyst over Chilean public procurement data with two tools behind a router: SQL written by one agent and verified by a second, and retrieval over the procurement law and its regulation (answers cite the article).
 
-The project definition, architecture diagram, measurements, scope and open questions live in the Obsidian vault: `10 Projects/Natural Language Processing III/Final Project Proposal.md`. The diagram source is `docs/arquitectura.html`.
+The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation design and measurements are documented by the project authors outside this repository.
 
 **Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. Document retrieval (RAG) is not wired into the pipeline yet, and the real model has not been run end to end.
 
@@ -98,7 +98,10 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 
 - **The local model has not been run yet** (Ollama + `qwen2.5-coder:14b` is the chosen setup; see Setup). The orchestration is tested with `FakeLLM` only. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
 - **Personal-data assumption:** a supplier is a natural person when the number of `RutSucursal` is < 50,000,000 (documented, not verifiable in the data). `NombreProveedor` is masked for those, for unparseable RUTs, and whenever the flag is missing from a result.
-- **Personal data:** the quotation files contain contact names and, in a free-text field, e-mails and phone numbers of supplier representatives. Drop or mask them when loading, never copy them into the vault or a repo, and keep extracted copies out of `data/` once used.
+- **Personal data:** the quotation files contain contact names and, in a free-text field, e-mails and phone numbers of supplier representatives. Drop or mask them when loading, never copy them into a repo, and keep extracted copies out of `data/` once used.
 - The reference SQL and the gold articles were written by the assistant and are **not validated** by a domain or legal expert.
 - `data/`, `.env` and `.venv/` are git-ignored; nothing in `data/` is needed to run the tests.
-- The project is independent of any employer: use only public data and personal accounts.
+
+## License
+
+MIT, see `LICENSE`. It covers the code only: the law texts and the ChileCompra data are not redistributed here and keep their own terms.
