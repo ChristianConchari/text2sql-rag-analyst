@@ -166,3 +166,20 @@ def test_api_injection_attempt_is_never_executed(db):
     r = TestClient(create_app(pipeline(llm, db))).post("/ask", json={"question": "x"}).json()
     assert r["status"] == "failed" and r["attempts"] == 4
     assert duckdb.connect(str(db), read_only=True).execute("select count(*) from oc_lineas").fetchone()[0] == 3
+
+
+def test_loop_passes_value_context_to_the_generator(db):
+    llm = FakeLLM([sql_block("SELECT Codigo FROM oc_lineas ORDER BY Codigo")])
+    run_sql_loop("¿Cuánto vendió Empresa?", llm, POLICY, lambda s: run_query(db, s), "SYS",
+                 context="- NombreProveedor: 'Empresa SA' (1 líneas)")
+    assert llm.calls[0][1]["content"] == "¿Cuánto vendió Empresa?\n\n- NombreProveedor: 'Empresa SA' (1 líneas)"
+
+
+def test_grain_violation_is_fed_back_and_fixed(db):
+    bad = sql_block("SELECT Codigo, sum(MontoTotalOC) AS m FROM oc_lineas GROUP BY Codigo")
+    good = sql_block("SELECT Codigo FROM oc_lineas ORDER BY Codigo")
+    llm = FakeLLM([bad, good])
+    res = run_sql_loop("q", llm, POLICY, lambda s: run_query(db, s), "SYS")
+    assert res.status == "ok" and len(res.attempts) == 2
+    assert res.attempts[0].violations[0].startswith("order_level_aggregate_over_lines")
+    assert "deduplica primero por codigo" in llm.calls[1][-1]["content"].lower()

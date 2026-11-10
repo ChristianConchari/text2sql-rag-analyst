@@ -86,3 +86,14 @@
 - {id: f17, kind: filter_only, expect: reject, code: filter_only_outside_where, sql: "SELECT CASE WHEN EspecificacionProveedor ILIKE '%a%' THEN 1 END AS x FROM oc_lineas"}
 - {id: f18, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE \"Descripcion/Obervaciones\" = NombreProveedor"}
 - {id: f19, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE strip_accents(\"Descripcion/Obervaciones\", 'x') ILIKE 'a'"}
+# --- grano: columnas de nivel orden repetidas en cada línea (order_grain en la configuración) ---
+- {id: g01, kind: grain, expect: reject, code: order_level_aggregate_over_lines, sql: "SELECT NombreProveedor, SUM(MontoTotalOC_PesosChilenos) AS t, es_persona_natural FROM oc_lineas WHERE EsTratoDirecto = 'Si' GROUP BY NombreProveedor, es_persona_natural ORDER BY t DESC LIMIT 5"}  # error real de qwen2.5-coder:14b, 2026-11-10
+- {id: g02, kind: grain, expect: reject, code: order_level_aggregate_over_lines, sql: "SELECT Codigo, sum(MontoTotalOC) AS m FROM oc_lineas GROUP BY Codigo"}
+- {id: g03, kind: grain, expect: reject, code: order_level_aggregate_over_lines, sql: "SELECT sum(DISTINCT MontoTotalOC) AS m FROM oc_lineas"}
+- {id: g04, kind: grain, expect: reject, code: order_level_aggregate_over_lines, sql: "WITH t AS (SELECT Codigo, MontoTotalOC FROM oc_lineas) SELECT sum(MontoTotalOC) AS m FROM t"}
+- {id: g05, kind: grain, expect: reject, code: order_level_aggregate_over_lines, sql: "SELECT sector, avg(MontoTotalOC_PesosChilenos) AS m FROM oc_lineas GROUP BY sector"}
+- {id: g06, kind: grain, expect: allow, sql: "WITH o AS (SELECT Codigo, any_value(MontoTotalOC_PesosChilenos) AS MontoTotalOC_PesosChilenos FROM oc_lineas GROUP BY Codigo) SELECT sum(MontoTotalOC_PesosChilenos) AS m FROM o"}
+- {id: g07, kind: grain, expect: allow, sql: "SELECT sum(MontoTotalOC) AS m FROM (SELECT DISTINCT Codigo, MontoTotalOC FROM oc_lineas)"}
+- {id: g08, kind: grain, expect: allow, sql: "SELECT avg(MontoTotalOC) AS m FROM (SELECT DISTINCT ON (Codigo) Codigo, MontoTotalOC FROM oc_lineas)"}
+- {id: g09, kind: grain, expect: allow, sql: "WITH o AS (SELECT Codigo, any_value(sector) AS s, any_value(MontoTotalOC) AS MontoTotalOC FROM oc_lineas GROUP BY Codigo), f AS (SELECT s, MontoTotalOC FROM o WHERE s = 'Salud') SELECT avg(MontoTotalOC) AS m FROM f"}
+- {id: g10, kind: grain, expect: allow, sql: "SELECT sum(totalLineaNeto) AS m, max(MontoTotalOC) AS mx FROM oc_lineas WHERE monedaItem = 'CLP'"}

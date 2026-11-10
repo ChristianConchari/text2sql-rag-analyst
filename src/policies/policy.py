@@ -23,6 +23,8 @@ class Policy:
     blocked_columns: frozenset[str] = frozenset()      # query is rejected if it mentions them
     restricted_columns: frozenset[str] = frozenset()   # allowed, but the verifier emits a warning
     filter_only_columns: frozenset[str] = frozenset()  # allowed only inside WHERE, in a whitelisted text predicate
+    order_level_columns: frozenset[str] = frozenset()  # repeated on every line of an order: never SUM/AVG over lines
+    order_key: str | None = None                         # column that identifies the order (deduplicate by it)
     mask_column: str | None = None   # column whose values are masked for natural persons
     flag_column: str | None = None   # per-row flag that decides the masking (travels with mask_column)
 
@@ -36,6 +38,7 @@ def load_policy(path: str | Path) -> Policy:
     cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     limits = cfg.get("limits") or {}
     masking = cfg.get("masking") or {}
+    grain = cfg.get("order_grain") or {}
     return Policy(
         allowed_tables=_lower_set(cfg["allowed_tables"]),
         default_limit=int(limits.get("default", DEFAULT_LIMIT)),
@@ -43,6 +46,8 @@ def load_policy(path: str | Path) -> Policy:
         blocked_columns=_lower_set(cfg.get("blocked_columns")),
         restricted_columns=_lower_set(cfg.get("restricted_columns")),
         filter_only_columns=_lower_set(cfg.get("filter_only_columns")),
+        order_level_columns=_lower_set(grain.get("order_level_columns")),
+        order_key=grain.get("order_key", "").lower() or None,
         mask_column=masking.get("column", "").lower() or None,
         flag_column=masking.get("flag_column", "").lower() or None,
     )

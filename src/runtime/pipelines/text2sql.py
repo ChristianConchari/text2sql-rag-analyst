@@ -20,6 +20,7 @@ from src.agents.orchestration.sql_loop import run_sql_loop
 from src.policies.sql_verifier import Policy, load_policy
 from src.rag.prompts.sql_prompt import build_schema_context, build_sql_system
 from src.rag.retrievers.base import Retriever
+from src.rag.retrievers.value_index import ValueIndex, format_hits, load_value_lookup_config
 from src.runtime.providers.llm_client import ChatModel, LLMClient
 from src.toolkits.db.executor import run_query
 
@@ -52,9 +53,10 @@ class Text2SQLPipeline:
     """Wires the model, policy, database and prompt together."""
 
     def __init__(self, llm: ChatModel, policy: Policy, db_path: str | Path, system_prompt: str, max_retries: int = 3,
-                 retriever: Retriever | None = None):
+                 retriever: Retriever | None = None, value_index: ValueIndex | None = None):
         self.llm, self.policy, self.db_path = llm, policy, Path(db_path)
         self.system_prompt, self.max_retries, self.retriever = system_prompt, max_retries, retriever
+        self.value_index = value_index
 
     def answer(self, question: str) -> Answer:
         """Answer one question end to end."""
@@ -65,8 +67,9 @@ class Text2SQLPipeline:
             return self._answer_docs(question)
         if route == "unknown":
             return Answer(route, "needs_clarification", "No entendí la pregunta; ¿puedes reformularla?")
+        context = format_hits(self.value_index.lookup(question)) if self.value_index else None
         res = run_sql_loop(question, self.llm, self.policy, lambda s: run_query(self.db_path, s),
-                           self.system_prompt, self.max_retries)
+                           self.system_prompt, self.max_retries, context=context or None)
         if res.status == "declined":
             return Answer(route, "declined", f"Con estos datos no puedo responder: {res.reason or 'sin detalle'}",
                           attempts=len(res.attempts))
@@ -105,10 +108,22 @@ def build_default_retriever() -> Retriever | None:
         return None
 
 
+def build_default_value_index(db_path: str | Path) -> ValueIndex | None:
+    """Value lookup over the configured columns, or None (with a warning) if not configured or the DB is missing."""
+    config = load_value_lookup_config(ROOT / "configs/domain/chilecompra.yaml")
+    if config is None:
+        return None
+    try:
+        return ValueIndex.from_duckdb(db_path, config)
+    except Exception as e:   # noqa: BLE001 - a missing/old DB must not stop the API; the loop works without it
+        log.warning("value lookup disabled: %s", e)
+        return None
+
+
 def build_default_pipeline() -> Text2SQLPipeline:
     """Production wiring: configs/model/llm.yaml, configs/domain/chilecompra.yaml, the glossary; DB_PATH overrides the DB."""
     policy = load_policy(ROOT / "configs/domain/chilecompra.yaml")
     ctx = build_schema_context(ROOT / "domains/chilecompra/glossary.yaml", policy.blocked_columns)
-    return Text2SQLPipeline(LLMClient.from_config(), policy,
-                            os.environ.get("DB_PATH", ROOT / "data/chilecompra.duckdb"), build_sql_system(ctx),
-                            retriever=build_default_retriever())
+    db_path = os.environ.get("DB_PATH", ROOT / "data/chilecompra.duckdb")
+    return Text2SQLPipeline(LLMClient.from_config(), policy, db_path, build_sql_system(ctx),
+                            retriever=build_default_retriever(), value_index=build_default_value_index(db_path))

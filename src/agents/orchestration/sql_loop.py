@@ -50,13 +50,15 @@ def extract_sql(raw: str) -> str | None:
 
 
 def run_sql_loop(question: str, llm: ChatModel, policy: Policy, execute: Execute, system_prompt: str,
-                 max_retries: int = 3, dialect: str = DEFAULT_DIALECT) -> LoopResult:
+                 max_retries: int = 3, dialect: str = DEFAULT_DIALECT, context: str | None = None) -> LoopResult:
     """Generate, verify and execute SQL for `question`.
 
     status "ok": `sql`/`columns`/`rows` are set (rows masked). "declined": the model answered NO_SQL (the
     question cannot be answered with the data). "failed": retries exhausted or the model call failed.
+    `context` (e.g. real values found by the value lookup) is appended to the question as data for the generator.
     """
-    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": question}]
+    user = question if not context else f"{question}\n\n{context}"
+    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user}]
     res = LoopResult(status="failed")
     for _ in range(1 + max_retries):
         try:

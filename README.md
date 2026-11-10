@@ -4,7 +4,7 @@ Final project for *Procesamiento de Lenguaje Natural III* (Master of AI, FIUBA /
 
 The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation design and measurements are documented by the project authors outside this repository.
 
-**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. The document route (dense retrieval with bge-m3, answers with verified article citations) is wired in and tested against a fake LLM; the real chat model has not been run end to end. There is no mixed route yet (figures + legal text in one question): the router sends each question to one tool.
+**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. The document route (dense retrieval with bge-m3, answers with verified article citations) is wired in and tested against a fake LLM. The SQL route has been run end to end with the real model (`qwen2.5-coder:14b` on Ollama, 8k context) on a handful of questions, not yet on the full evaluation sets. A value lookup gives the generator the real spelling of the entities a question names, and the verifier rejects aggregates of order-level amounts over lines. There is no mixed route yet (figures + legal text in one question): the router sends each question to one tool.
 
 ## Quick start (fresh clone)
 
@@ -87,6 +87,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `configs/domain/chilecompra.yaml`, `domains/chilecompra/glossary.yaml` | domain policy (tables, limits, blocked columns) and column glossary with evidence status |
 | `eval/attack_cases.yaml`, `tests/unit/` | attack cases for the verifier and the pytest suite |
 | `docs/arquitectura.html` | architecture diagram page |
+| `src/rag/retrievers/value_index.py` | value lookup: distinct values of the columns in `value_lookup` (domain config), matched to the question's words without accents or case; generic words only break ties; natural persons' names are never indexed |
 | `src/rag/retrievers/` | `Retriever` interface, dense bge-m3 retriever (grouped by article, similarity threshold), embedding cache keyed by text hash + model, `HashEmbedder` for tests |
 | `src/rag/citations.py`, `src/rag/prompts/doc_prompt.py` | citation format `[Ley 19.886 art. 7]` and the answer prompt (fragments as DATA between delimiters) |
 | `src/policies/citation_verifier.py`, `src/agents/orchestration/doc_loop.py` | deterministic citation check and the answer loop (up to 3 retries, then decline) |
@@ -99,11 +100,12 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 - Move the ChileCompra column names out of the SQL prompt (`RutSucursal`, `NombreProveedor`, `es_persona_natural` in `src/rag/prompts/sql_prompt.py`) into the domain config. Deliberately postponed until the real model has been tried, because it changes what the model sees.
 - Mixed route (figures from the database + the legal basis in one answer) does not exist; the router picks one tool.
 - Re-calibrate `min_score` in `configs/rag/retrieval.yaml` when the model or corpus changes (provisional, small evaluation set).
-- Run the pipeline against the real model (Ollama) and check that the prompt fits the context window.
+- Run the full evaluation sets (SQL and documents) with the real model and the ablation.
+- Sanitize execution errors before they go back to the generator (a failing CAST on `NombreProveedor` could quote a natural person's name).
 
 ## Notes and cautions
 
-- **The local model has not been run yet** (Ollama + `qwen2.5-coder:14b` is the chosen setup; see Setup). The orchestration is tested with `FakeLLM` only. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
+- **The local model has only been tried on a few questions** (Ollama + `qwen2.5-coder:14b-8k`, see `infra/ollama/`); use `LLM_MODEL=qwen2.5-coder:14b-8k`. The tests use `FakeLLM`. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
 - **Personal-data assumption:** a supplier is a natural person when the number of `RutSucursal` is < 50,000,000 (documented, not verifiable in the data). `NombreProveedor` is masked for those, for unparseable RUTs, and whenever the flag is missing from a result.
 - **Personal data:** the quotation files contain contact names and, in a free-text field, e-mails and phone numbers of supplier representatives. Drop or mask them when loading, never copy them into a repo, and keep extracted copies out of `data/` once used.
 - The reference SQL and the gold articles were written by the assistant and are **not validated** by a domain or legal expert.

@@ -23,3 +23,18 @@ restricted_columns:
 masking:
   column: NombreProveedor
   flag_column: es_persona_natural
+# Grano: una fila es una LÍNEA de orden y estas columnas de orden se repiten en cada línea. Sumarlas o promediarlas
+# directamente sobre oc_lineas cuenta cada orden tantas veces como líneas tiene (error medido con el modelo real,
+# 2026-11-10). El verificador exige deduplicar antes por order_key (subconsulta o CTE con GROUP BY Codigo o DISTINCT).
+order_grain:
+  order_key: Codigo
+  order_level_columns: [MontoTotalOC, MontoTotalOC_PesosChilenos, TotalNetoOC, Impuestos, Descuentos, Cargos]
+# Búsqueda de valores (src/rag/retrievers/value_index.py): valores reales que coinciden con palabras de la pregunta,
+# entregados al generador para que filtre con nombres que existen. NombreProveedor solo se indexa cuando la marca
+# de `masking` es FALSE (el LLM nunca ve nombres de personas naturales). Nunca listar aquí columnas solo-filtro.
+value_lookup:
+  columns: [NombreProveedor, OrganismoPublico, UnidadCompra, RegionUnidadCompra, CiudadUnidadCompra, sector,
+            RubroN1, RubroN2, RubroN3, NombreroductoGenerico, ProcedenciaOC, DescripcionTipoOC]
+  max_per_column: 5
+  max_total: 12
+  max_values_per_word: 30

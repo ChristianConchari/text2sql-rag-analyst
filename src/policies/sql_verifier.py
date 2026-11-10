@@ -28,6 +28,10 @@ Rules (violation code -> why):
                                      CAST puts the text in DuckDB's error message, which goes back to the LLM)
   whole_row_reference                `SELECT t FROM tbl t` returns the whole row as a struct, bypassing column checks
   limit_not_integer_literal          LIMIT must be an integer literal so it can be clamped
+  order_level_aggregate_over_lines   SUM/AVG/MEDIAN/... of an order-level column (repeated on every line) whose rows
+                                     are not one per order: it must read from a subquery/CTE that groups by the
+                                     order key or is DISTINCT (also rejects SUM(DISTINCT amount)). Name-based: an
+                                     alias of the column in a CTE without deduplication is not detected.
 Warnings (query still accepted): restricted_column, flag_added, mask_without_flag.
 """
 from __future__ import annotations
@@ -68,6 +72,12 @@ FORBIDDEN_NODES = tuple(
 # Filter-only columns: the only shapes allowed (column, optionally wrapped, compared with string literals).
 FILTER_ONLY_WRAPPERS = (exp.Lower, exp.Upper, exp.Trim)
 FILTER_ONLY_WRAPPER_FUNCS = frozenset({"strip_accents"})
+# Aggregates whose result changes when an order's value is repeated once per line.
+GRAIN_SENSITIVE_AGGS = tuple(getattr(exp, n) for n in (
+    "Sum", "Avg", "Median", "Quantile", "PercentileCont", "PercentileDisc", "Stddev", "StddevPop", "StddevSamp",
+    "Variance", "VariancePop") if hasattr(exp, n))
+MAX_SOURCE_DEPTH = 10
+
 FILTER_ONLY_PREDICATES = (exp.Like, exp.ILike, exp.EQ, exp.NEQ, exp.In, exp.Is, exp.RegexpLike, exp.Contains)
 
 
@@ -103,7 +113,8 @@ def verify(sql: str, policy: Policy, dialect: str = DEFAULT_DIALECT) -> Verdict:
     table_violations, referenced_names = _table_violations(tree, policy)
     column_violations, warnings = _column_findings(tree, policy, referenced_names)
     violations = _dedupe(comment_violations + _forbidden_statement_violations(tree) + _function_violations(tree)
-                         + table_violations + column_violations + _filter_only_violations(tree, policy))
+                         + table_violations + column_violations + _filter_only_violations(tree, policy)
+                         + _order_grain_violations(tree, policy))
     if violations:
         return Verdict(False, violations=violations, warnings=warnings)
 
@@ -252,6 +263,66 @@ def _inside_where(node: exp.Expression) -> bool:
             return False
         parent = parent.parent
     return False
+
+
+def _order_grain_violations(tree: exp.Expression, policy: Policy) -> list[str]:
+    """Grain-sensitive aggregates over order-level columns must read one row per order."""
+    if not policy.order_level_columns:
+        return []
+    ctes = {c.alias.lower(): c.this for c in tree.find_all(exp.CTE)}
+    found: list[str] = []
+    for agg in tree.find_all(*GRAIN_SENSITIVE_AGGS):
+        if not any(c.name.lower() in policy.order_level_columns for c in agg.find_all(exp.Column)):
+            continue
+        select = agg.find_ancestor(exp.Select)
+        if isinstance(agg.this, exp.Distinct) or select is None or not _reads_one_row_per_order(select, policy, ctes, 0):
+            found.append(_grain_feedback(agg, select, policy))
+    return found
+
+
+def _grain_feedback(agg: exp.Expression, select: exp.Select | None, policy: Policy) -> str:
+    """Violation text written for the generator: what is wrong and the shape of the fix."""
+    key = policy.order_key or "la clave de la orden"
+    msg = (f"order_level_aggregate_over_lines: {agg.sql()} agrega un valor de nivel orden que se repite en cada "
+           f"línea. Deduplica primero por {key} en un CTE que traiga TODO lo que necesitas, una fila por orden: "
+           f"WITH o AS (SELECT {key}, any_value(<monto>) AS monto, any_value(<columna para filtrar o agrupar>) AS ... "
+           f"FROM ... WHERE ... GROUP BY {key}) y agrega sobre o, sin volver a unir con la tabla de líneas")
+    if select is not None and select.args.get("joins"):
+        msg += ". Un JOIN con la tabla de líneas vuelve a repetir cada orden"
+    return msg
+
+
+def _reads_one_row_per_order(select: exp.Select, policy: Policy, ctes: dict[str, exp.Expression], depth: int) -> bool:
+    """True if the FROM source of `select` is a subquery/CTE with one row per order (GROUP BY key or DISTINCT)."""
+    from_ = select.args.get("from_") or select.args.get("from")
+    if from_ is None or select.args.get("joins") or depth > MAX_SOURCE_DEPTH:
+        return False
+    source = from_.this
+    if isinstance(source, exp.Subquery):
+        inner = source.this
+    elif isinstance(source, exp.Table) and source.name.lower() in ctes:
+        inner = ctes[source.name.lower()]
+    else:
+        return False   # the base table: one row per line
+    return _is_one_row_per_order(inner, policy, ctes, depth + 1)
+
+
+def _is_one_row_per_order(query: exp.Expression, policy: Policy, ctes: dict[str, exp.Expression], depth: int) -> bool:
+    if not isinstance(query, exp.Select):
+        return False   # UNION and friends: not analysed, fail closed
+    key = policy.order_key
+    group = query.args.get("group")
+    if key and group and any(isinstance(e, exp.Column) and e.name.lower() == key for e in group.expressions):
+        return True
+    distinct = query.args.get("distinct")
+    if key and distinct is not None:
+        on = distinct.args.get("on")
+        keys_in = on.expressions if on is not None else query.expressions   # DISTINCT ON (key) / DISTINCT key, ...
+        if any(isinstance(e.unalias(), exp.Column) and e.unalias().name.lower() == key for e in keys_in):
+            return True
+    if group:
+        return False   # grouped by something else: not one row per order
+    return _reads_one_row_per_order(query, policy, ctes, depth)   # a plain filter over a deduplicated source
 
 
 def _enforce_limit(tree: exp.Expression, policy: Policy) -> str | None:
