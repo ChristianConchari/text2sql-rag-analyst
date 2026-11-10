@@ -1,0 +1,6 @@
+# Variante del modelo del proyecto con ventana de 8k tokens.
+# El prompt SQL mide ~17.000 caracteres (~5-6k tokens) y el contexto por defecto de Ollama lo truncaría en silencio.
+# Crear con: ollama create qwen2.5-coder:14b-8k -f infra/ollama/Modelfile.qwen2.5-coder-14b-8k
+FROM qwen2.5-coder:14b
+PARAMETER num_ctx 8192
+PARAMETER temperature 0
