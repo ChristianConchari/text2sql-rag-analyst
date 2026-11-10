@@ -75,7 +75,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `eval/candidate_questions.yaml`, `eval/candidate_questions_v2.yaml` | 21 + 25 SQL questions with reference SQL, kind and known traps |
 | `eval/baseline_full_schema.yaml`, `eval/baseline_v2_full_schema.yaml` | raw baseline predictions (full schema, proxy model) |
 | `eval/doc_questions.yaml` | 25 retrieval questions with gold articles (`gold`, `gold_extra`) |
-| `src/policies/sql_verifier.py` | deterministic verifier (sqlglot): one read-only SELECT, allowed tables, LIMIT 100/1000, no comments, personal-data columns |
+| `src/policies/sql_verifier.py` | deterministic verifier (sqlglot): one read-only SELECT, allowed tables, LIMIT 100/1000, no comments, personal-data columns; free-text columns with e-mails/phones are *filter-only* (allowed only in `WHERE`, in a whitelisted text predicate against string literals, so neither the result nor a DuckDB error message can echo their values) |
 | `src/policies/policy.py` | `Policy` and `load_policy`: the domain rules the verifier enforces, read from `configs/domain/*.yaml` |
 | `src/policies/masking.py` | finds the output columns to mask and appends the `es_persona_natural` flag to the query when safe |
 | `src/policies/output_guardrail.py` | masks `NombreProveedor` unless the row has `es_persona_natural = FALSE` (fail-closed) |

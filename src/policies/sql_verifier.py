@@ -21,7 +21,11 @@ Rules (violation code -> why):
   table_not_allowed                  table is neither in policy.allowed_tables nor a CTE defined in the query
   qualified_table_not_allowed        db.table / catalog.db.table could reach another attached database
   blocked_column                     personal-data columns listed in the policy
-  select_star_exposes_blocked_columns  `*` would return the blocked columns (COUNT(*) is fine)
+  select_star_exposes_blocked_columns  `*` would return the blocked or filter-only columns (COUNT(*) is fine)
+  filter_only_outside_where          a filter-only column (free text with personal data) used outside WHERE
+  filter_only_predicate              a filter-only column inside WHERE but not in a whitelisted text predicate
+                                     against string literals; anything else could echo the value (e.g. a failing
+                                     CAST puts the text in DuckDB's error message, which goes back to the LLM)
   whole_row_reference                `SELECT t FROM tbl t` returns the whole row as a struct, bypassing column checks
   limit_not_integer_literal          LIMIT must be an integer literal so it can be clamped
 Warnings (query still accepted): restricted_column, flag_added, mask_without_flag.
@@ -61,6 +65,11 @@ FORBIDDEN_NODES = tuple(
 )
 
 
+# Filter-only columns: the only shapes allowed (column, optionally wrapped, compared with string literals).
+FILTER_ONLY_WRAPPERS = (exp.Lower, exp.Upper, exp.Trim)
+FILTER_ONLY_WRAPPER_FUNCS = frozenset({"strip_accents"})
+FILTER_ONLY_PREDICATES = (exp.Like, exp.ILike, exp.EQ, exp.NEQ, exp.In, exp.Is, exp.RegexpLike, exp.Contains)
+
 
 @dataclass
 class Verdict:
@@ -94,7 +103,7 @@ def verify(sql: str, policy: Policy, dialect: str = DEFAULT_DIALECT) -> Verdict:
     table_violations, referenced_names = _table_violations(tree, policy)
     column_violations, warnings = _column_findings(tree, policy, referenced_names)
     violations = _dedupe(comment_violations + _forbidden_statement_violations(tree) + _function_violations(tree)
-                         + table_violations + column_violations)
+                         + table_violations + column_violations + _filter_only_violations(tree, policy))
     if violations:
         return Verdict(False, violations=violations, warnings=warnings)
 
@@ -174,7 +183,7 @@ def _column_findings(tree: exp.Expression, policy: Policy, table_names: set[str]
     warnings: list[str] = []
     for node in tree.walk():
         if isinstance(node, exp.Star):
-            if not isinstance(node.parent, exp.Count) and policy.blocked_columns:
+            if not isinstance(node.parent, exp.Count) and (policy.blocked_columns or policy.filter_only_columns):
                 violations.append("select_star_exposes_blocked_columns")
         elif isinstance(node, exp.Column):
             column = node.name.lower()
@@ -185,6 +194,64 @@ def _column_findings(tree: exp.Expression, policy: Policy, table_names: set[str]
             elif not node.table and column in table_names:
                 violations.append(f"whole_row_reference: {node.name}")
     return violations, warnings
+
+
+def _filter_only_violations(tree: exp.Expression, policy: Policy) -> list[str]:
+    """Filter-only columns may appear only in WHERE, as `[wrappers(]col[)] <predicate> <string literals>`."""
+    found: list[str] = []
+    for column in tree.find_all(exp.Column):
+        if column.name.lower() not in policy.filter_only_columns:
+            continue
+        predicate = _unwrap_to_predicate(column)
+        if predicate is None or not _compares_with_string_literals(predicate):
+            found.append(f"filter_only_predicate: {column.name}")
+        elif not _inside_where(predicate):
+            found.append(f"filter_only_outside_where: {column.name}")
+    return found
+
+
+def _unwrap_to_predicate(column: exp.Column) -> exp.Expression | None:
+    """Climb from the column through allowed wrappers (as their only argument); return the predicate or None."""
+    node: exp.Expression = column
+    while True:
+        parent = node.parent
+        if (isinstance(parent, exp.Anonymous) and parent.name.lower() in FILTER_ONLY_WRAPPER_FUNCS
+                and len(parent.expressions) == 1 and parent.expressions[0] is node):
+            node = parent
+            continue
+        if parent is None or parent.args.get("this") is not node:
+            return None   # the column is not the predicate's subject (e.g. it is the pattern, or a function arg)
+        if isinstance(parent, FILTER_ONLY_WRAPPERS):
+            node = parent
+            continue
+        return parent if isinstance(parent, FILTER_ONLY_PREDICATES) else None
+
+
+def _compares_with_string_literals(predicate: exp.Expression) -> bool:
+    if isinstance(predicate, exp.Is):
+        return isinstance(predicate.expression, exp.Null)
+    if isinstance(predicate, exp.In):
+        values = predicate.expressions
+        return bool(values) and predicate.args.get("query") is None and all(_is_string_literal(v) for v in values)
+    if isinstance(predicate, (exp.Like, exp.ILike)) and predicate.args.get("escape") is not None:
+        return False
+    return _is_string_literal(predicate.expression)
+
+
+def _is_string_literal(node: exp.Expression | None) -> bool:
+    return isinstance(node, exp.Literal) and node.is_string
+
+
+def _inside_where(node: exp.Expression) -> bool:
+    """True if the nearest enclosing clause is a WHERE (not a projection, GROUP BY, ORDER BY, HAVING, JOIN ...)."""
+    parent = node.parent
+    while parent is not None:
+        if isinstance(parent, exp.Where):
+            return True
+        if isinstance(parent, (exp.Select, exp.Group, exp.Order, exp.Having, exp.Join, exp.Window, exp.Qualify)):
+            return False
+        parent = parent.parent
+    return False
 
 
 def _enforce_limit(tree: exp.Expression, policy: Policy) -> str | None:

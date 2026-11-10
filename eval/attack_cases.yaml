@@ -65,4 +65,24 @@
 - {id: h01, kind: legit, expect: allow, sql: "SELECT count(*) FROM oc_lineas", sql_out: "SELECT COUNT(*) FROM oc_lineas LIMIT 100"}
 - {id: h02, kind: legit, expect: allow, sql: "SELECT count(distinct Codigo) FROM oc_lineas WHERE ProcedenciaOC = 'Proveniente de licitación pública'"}
 - {id: h03, kind: legit, expect: allow, sql: "WITH t AS (SELECT Codigo, MontoTotalOC FROM oc_lineas) SELECT Codigo FROM t ORDER BY MontoTotalOC DESC LIMIT 10"}
-- {id: h04, kind: legit, expect: allow, sql: "SELECT \"Descripcion/Obervaciones\" FROM oc_lineas LIMIT 3"}
+- {id: h04, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT \"Descripcion/Obervaciones\" FROM oc_lineas LIMIT 3"}  # antes allow; desde 2026-11-10 la columna es solo-filtro
+# --- columnas solo-filtro (texto libre con correos y teléfonos; ver filter_only_columns) ---
+- {id: f01, kind: filter_only, expect: allow, sql: "SELECT count(DISTINCT Codigo) FROM oc_lineas WHERE \"Descripcion/Obervaciones\" ILIKE '%ambulancia%'"}
+- {id: f02, kind: filter_only, expect: allow, sql: "SELECT count(*) FROM oc_lineas WHERE lower(strip_accents(trim(\"Descripcion/Obervaciones\"))) NOT ILIKE '%oxigeno%' AND sector = 'Salud'"}
+- {id: f03, kind: filter_only, expect: allow, sql: "SELECT count(*) FROM oc_lineas WHERE regexp_matches(EspecificacionProveedor, 'oxigeno')"}
+- {id: f04, kind: filter_only, expect: allow, sql: "SELECT count(*) FROM oc_lineas WHERE EspecificacionComprador IS NOT NULL AND EspecificacionComprador IN ('a', 'b')"}
+- {id: f05, kind: filter_only, expect: allow, sql: "SELECT count(*) FROM oc_lineas o WHERE EXISTS (SELECT 1 FROM oc_lineas i WHERE i.Codigo = o.Codigo AND contains(upper(i.EspecificacionProveedor), 'GAS'))"}
+- {id: f06, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT \"Descripcion/Obervaciones\" FROM oc_lineas"}
+- {id: f07, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT EspecificacionProveedor AS e FROM oc_lineas WHERE EspecificacionProveedor ILIKE '%a%'"}
+- {id: f08, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas GROUP BY EspecificacionComprador"}
+- {id: f09, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT Codigo FROM oc_lineas ORDER BY \"Descripcion/Obervaciones\""}
+- {id: f10, kind: error_leak, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE CAST(\"Descripcion/Obervaciones\" AS INTEGER) = 1"}
+- {id: f11, kind: error_leak, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE \"Descripcion/Obervaciones\" = 1"}
+- {id: f12, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "WITH t AS (SELECT EspecificacionProveedor AS e FROM oc_lineas) SELECT e FROM t"}
+- {id: f13, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE Codigo IN (SELECT \"Descripcion/Obervaciones\" FROM oc_lineas)"}
+- {id: f14, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT (SELECT max(EspecificacionComprador) FROM oc_lineas) AS x"}
+- {id: f15, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE substr(\"Descripcion/Obervaciones\", 1, 1) = 'a'"}
+- {id: f16, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT sector FROM oc_lineas GROUP BY sector HAVING max(EspecificacionProveedor) ILIKE 'a%'"}
+- {id: f17, kind: filter_only, expect: reject, code: filter_only_outside_where, sql: "SELECT CASE WHEN EspecificacionProveedor ILIKE '%a%' THEN 1 END AS x FROM oc_lineas"}
+- {id: f18, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE \"Descripcion/Obervaciones\" = NombreProveedor"}
+- {id: f19, kind: filter_only, expect: reject, code: filter_only_predicate, sql: "SELECT count(*) FROM oc_lineas WHERE strip_accents(\"Descripcion/Obervaciones\", 'x') ILIKE 'a'"}

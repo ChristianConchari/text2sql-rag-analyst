@@ -22,6 +22,7 @@ class Policy:
     max_limit: int = MAX_LIMIT
     blocked_columns: frozenset[str] = frozenset()      # query is rejected if it mentions them
     restricted_columns: frozenset[str] = frozenset()   # allowed, but the verifier emits a warning
+    filter_only_columns: frozenset[str] = frozenset()  # allowed only inside WHERE, in a whitelisted text predicate
     mask_column: str | None = None   # column whose values are masked for natural persons
     flag_column: str | None = None   # per-row flag that decides the masking (travels with mask_column)
 
@@ -41,6 +42,7 @@ def load_policy(path: str | Path) -> Policy:
         max_limit=int(limits.get("max", MAX_LIMIT)),
         blocked_columns=_lower_set(cfg.get("blocked_columns")),
         restricted_columns=_lower_set(cfg.get("restricted_columns")),
+        filter_only_columns=_lower_set(cfg.get("filter_only_columns")),
         mask_column=masking.get("column", "").lower() or None,
         flag_column=masking.get("flag_column", "").lower() or None,
     )

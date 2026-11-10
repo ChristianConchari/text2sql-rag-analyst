@@ -3,6 +3,7 @@
 # Estado: v1 escrito a partir de los nombres de columna y de perfiles contra los datos
 # (2026-11-01). NO está validado por un experto en compras públicas de Chile.
 # Cada columna: desc = qué significa; usar = cómo consultarla; ojo = trampa verificada.
+# Re-verificación (2026-11-10, archivo de enero re-publicado por ChileCompra: 349.374 líneas, 131.720 órdenes): las 9 columnas `inferida` pasaron a `verificada` con consulta; no hay diccionario de datos oficial (única vía: datosabiertos@chilecompra.cl). Los resultados anteriores a esa fecha se midieron sobre la versión previa del archivo.
 # Validación contra DuckDB (2026-11-01): las 80 columnas de oc_lineas están cubiertas, sin faltantes ni sobrantes.
 # estado: verificada = lo afirmado se comprobó con `consulta` (resultado en `resultado`);
 #         parcial    = datos verificados, pero el significado es inferido (ver `por_validar`);
@@ -56,16 +57,18 @@ columnas:
     consulta: 'SELECT count(*) FILTER (WHERE Link NOT LIKE ''http%'') FROM oc_lineas'
     resultado: '0'
   Nombre:
-    desc: 'Título de la orden. En muchas órdenes automáticas dice "ORDEN DE COMPRA DESDE <licitación>".'
-    usar: 'Búsqueda de texto con ILIKE; poco fiable para clasificar.'
-    estado: inferida
-    por_validar: 'contenido no perfilado; solo se conoce el patrón "ORDEN DE COMPRA DESDE ..." por inspección'
+    desc: 'Título de la orden, texto libre del comprador; nunca nulo y constante dentro de la orden (105.494 valores). El patrón "ORDEN DE COMPRA DESDE <licitación>" aparece en 9.719 órdenes, casi todas de tipo SE (9.701 de 64.411) y 18 de tipo CC.'
+    usar: 'Búsqueda de texto con ILIKE; poco fiable para clasificar (para el tipo usar CodigoAbreviadoTipoOC o ProcedenciaOC).'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE Nombre IS NULL), count(DISTINCT Nombre), count(DISTINCT Codigo) FILTER (WHERE Nombre ILIKE ''ORDEN DE COMPRA DESDE%''), (SELECT count(*) FROM (SELECT Codigo FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT Nombre)>1)) FROM oc_lineas'
+    resultado: '0, 105494, 9719, 0'
   Descripcion/Obervaciones:
-    desc: 'Descripción u observaciones de la orden (el nombre real tiene el error "Obervaciones"; va entre comillas por la barra).'
-    usar: 'Búsqueda de texto libre.'
-    ojo: 'Nombre con barra y typo; usar comillas dobles en SQL.'
-    estado: inferida
-    por_validar: 'contenido no perfilado'
+    desc: 'Descripción u observaciones de la orden, texto libre; constante dentro de la orden y casi siempre llena (349.049 líneas con texto). El nombre real tiene el error "Obervaciones" y va entre comillas por la barra.'
+    usar: 'Solo en WHERE, como predicado de texto contra literales: ILIKE, LIKE, =, <>, IN (...), IS [NOT] NULL, regexp_matches(col, ''...'') o contains(col, ''...''), opcionalmente con lower/upper/trim/strip_accents. Nunca en SELECT, GROUP BY, ORDER BY, HAVING ni en CAST/substr: el verificador lo rechaza.'
+    ojo: 'DATO PERSONAL VERIFICADO: contiene correos electrónicos en 47.921 órdenes (36 %) y números de celular chilenos en 4.215 (contactos de despacho o facturación). Nombre con barra y typo; usar comillas dobles en SQL.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE trim("Descripcion/Obervaciones")<>''''), count(DISTINCT Codigo) FILTER (WHERE regexp_matches("Descripcion/Obervaciones",''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'')), count(DISTINCT Codigo) FILTER (WHERE regexp_matches("Descripcion/Obervaciones",''(\+?56)?\s?9\s?[0-9]{4}\s?[0-9]{4}'')) FROM oc_lineas'
+    resultado: '349049, 47921, 4215'
 
   # ---------- tipo y procedencia ----------
   Tipo:
@@ -252,7 +255,7 @@ columnas:
     regla_adoptada: 'Se SUMA en la identidad MontoTotalOC = TotalNetoOC + Impuestos - Descuentos + Cargos (verificada).'
   TotalNetoOC:
     desc: 'Total neto de la orden (sin impuestos) en su moneda.'
-    usar: 'Alternativa cuando MontoTotalOC es nulo, aclarando que es neto.'
+    usar: 'Alternativa cuando MontoTotalOC es nulo, aclarando que es neto. Es la suma de totalLineaNeto de la orden en 127.304 de 127.519 órdenes con valor (99,8 %).'
     ojo: 'Se repite por línea; nulo en 4.201 órdenes. NO es "monto total" salvo que el usuario pida neto.'
     estado: verificada
     consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
@@ -266,9 +269,11 @@ columnas:
     consulta: 'SELECT count(DISTINCT CodigoUnidadCompra) FROM oc_lineas'
     resultado: '3853'
   RutUnidadCompra:
-    desc: 'RUT de la unidad de compra.'
-    estado: inferida
-    por_validar: 'no perfilado'
+    desc: 'RUT de la persona jurídica a la que pertenece la unidad de compra (1.715 RUT para 3.853 unidades y 1.110 organismos). Siempre con formato NN.NNN.NNN-D y siempre >= 50.000.000 (persona jurídica): no es dato personal.'
+    usar: 'Cada unidad tiene un solo RUT. No sirve para contar organismos: 104 organismos usan más de un RUT y 2 RUT están en más de un organismo. Contar organismos con CodigoOrganismoPublico.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT RutUnidadCompra), count(*) FILTER (WHERE NOT regexp_matches(RutUnidadCompra,''^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9kK]$'')), count(*) FILTER (WHERE try_cast(replace(split_part(RutUnidadCompra,''-'',1),''.'','''') AS BIGINT) < 50000000), (SELECT count(*) FROM (SELECT CodigoUnidadCompra FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT RutUnidadCompra)>1)), (SELECT count(*) FROM (SELECT CodigoOrganismoPublico FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT RutUnidadCompra)>1)), (SELECT count(*) FROM (SELECT RutUnidadCompra FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT CodigoOrganismoPublico)>1)) FROM oc_lineas'
+    resultado: '1715, 0, 0, 0, 104, 2'
   UnidadCompra:
     desc: 'Nombre de la unidad de compra (3.093). Algunos nombres son genéricos (p. ej. "Municipalidad").'
     ojo: 'Distintas unidades pueden compartir nombre; no usarlo para contar compradores.'
@@ -300,9 +305,12 @@ columnas:
     consulta: 'SELECT count(DISTINCT ActividadComprador), count(*) FILTER (WHERE ActividadComprador='''') FROM oc_lineas'
     resultado: '715, 67209'
   CiudadUnidadCompra:
-    desc: 'Ciudad de la unidad de compra.'
-    estado: inferida
-    por_validar: 'no perfilado'
+    desc: 'Ciudad de la unidad de compra (413 valores tras TRIM). Nunca nula, pero ''*'' marca ciudad desconocida en 43.363 líneas (19.302 órdenes, 293 organismos): es el valor más frecuente.'
+    usar: 'Para geografía preferir RegionUnidadCompra. Si se pide por ciudad: TRIM, ILIKE y excluir ''*'' (informarlo como "sin ciudad").'
+    ojo: 'Espacios al final en 45.461 líneas. No es un atributo fijo de la unidad: 891 de 3.853 unidades aparecen con más de una ciudad.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT trim(CiudadUnidadCompra)), count(*) FILTER (WHERE trim(CiudadUnidadCompra)=''*''), count(DISTINCT Codigo) FILTER (WHERE trim(CiudadUnidadCompra)=''*''), count(*) FILTER (WHERE CiudadUnidadCompra<>trim(CiudadUnidadCompra)), (SELECT count(*) FROM (SELECT CodigoUnidadCompra FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT CiudadUnidadCompra)>1)) FROM oc_lineas'
+    resultado: '413, 43363, 19302, 45461, 891'
   RegionUnidadCompra:
     desc: 'Región de la unidad de compra (p. ej. ''Región del Maule '').'
     ojo: 'Con espacio al final y 32 variantes; usar TRIM e ILIKE.'
@@ -324,9 +332,11 @@ columnas:
 
   # ---------- proveedor ----------
   CodigoSucursal:
-    desc: 'Código de la sucursal del proveedor.'
-    estado: inferida
-    por_validar: 'solo se conoce el recuento de distintos (20.827)'
+    desc: 'Código de la sucursal del proveedor (20.826). Cada sucursal pertenece a un solo proveedor; 177 proveedores tienen más de una sucursal.'
+    usar: 'Contar proveedores con CodigoProveedor, no con CodigoSucursal (da 314 de más).'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT CodigoSucursal), count(DISTINCT CodigoProveedor), (SELECT count(*) FROM (SELECT CodigoSucursal FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT CodigoProveedor)>1)), (SELECT count(*) FROM (SELECT CodigoProveedor FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT CodigoSucursal)>1)) FROM oc_lineas'
+    resultado: '20826, 20512, 0, 177'
   RutSucursal:
     desc: 'RUT de la sucursal (puede ser el RUT personal de un proveedor persona natural).'
     ojo: 'Dato personal posible; no mostrarlo en respuestas.'
@@ -359,9 +369,12 @@ columnas:
     consulta: 'SELECT count(DISTINCT ActividadProveedor) FROM oc_lineas'
     resultado: '7984'
   ComunaProveedor:
-    desc: 'Comuna del proveedor.'
-    estado: inferida
-    por_validar: 'no perfilado'
+    desc: 'Comuna del proveedor (457 valores tras TRIM; nula en 164 líneas).'
+    usar: 'TRIM e ILIKE. Para agregados geográficos de proveedores preferir RegionProveedor.'
+    ojo: 'No es fija por sucursal: 1.991 sucursales aparecen con más de una comuna, y 62 nombres de comuna aparecen en más de una región. Probablemente es la dirección registrada al emitir cada orden (inferido; no hay diccionario oficial).'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE ComunaProveedor IS NULL), count(DISTINCT trim(ComunaProveedor)), (SELECT count(*) FROM (SELECT CodigoSucursal FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT ComunaProveedor)>1)), (SELECT count(*) FROM (SELECT trim(ComunaProveedor) FROM oc_lineas GROUP BY 1 HAVING count(DISTINCT trim(RegionProveedor))>1)) FROM oc_lineas'
+    resultado: '164, 457, 1991, 62'
   RegionProveedor:
     desc: 'Región del proveedor (''Región de Coquimbo '').'
     ojo: 'Nulo en 19 % de las líneas; 87 variantes con espacios al final.'
@@ -466,19 +479,19 @@ columnas:
     consulta: 'SELECT count(DISTINCT RubroN3) FROM oc_lineas'
     resultado: '1664'
   EspecificacionComprador:
-    desc: 'Texto libre con lo que pidió el comprador (258.739 valores).'
-    ojo: 'Puede contener datos personales o de contacto; no devolverlo en bruto.'
-    estado: parcial
-    consulta: 'SELECT count(DISTINCT EspecificacionComprador) FROM oc_lineas'
-    resultado: '258739'
-    por_validar: 'que contenga datos personales es una precaución, no un hallazgo'
+    desc: 'Texto libre con lo que pidió el comprador (258.673 valores).'
+    ojo: 'DATO PERSONAL VERIFICADO: correos electrónicos en 611 líneas. Ver usar.'
+    usar: 'Solo en WHERE, como predicado de texto contra literales: ILIKE, LIKE, =, <>, IN (...), IS [NOT] NULL, regexp_matches(col, ''...'') o contains(col, ''...''), opcionalmente con lower/upper/trim/strip_accents. Nunca en SELECT, GROUP BY, ORDER BY, HAVING ni en CAST/substr: el verificador lo rechaza.'
+    estado: verificada
+    consulta: 'SELECT count(DISTINCT EspecificacionComprador), count(*) FILTER (WHERE regexp_matches(EspecificacionComprador,''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'')) FROM oc_lineas'
+    resultado: '258673, 611'
   EspecificacionProveedor:
     desc: 'Texto libre con lo que ofertó el proveedor (84,2 % no nulo; 75,3 % con texto no vacío).'
-    ojo: 'Puede contener datos personales; no devolverlo en bruto.'
-    estado: parcial
-    consulta: 'SELECT round(100.0*count(EspecificacionProveedor)/count(*),1), round(100.0*count(*) FILTER (WHERE EspecificacionProveedor<>'''')/count(*),1) FROM oc_lineas'
-    resultado: '84.2, 75.3'
-    por_validar: 'que contenga datos personales es una precaución, no un hallazgo'
+    ojo: 'DATO PERSONAL VERIFICADO: correos electrónicos en 860 líneas y números de celular en 1.462. Ver usar.'
+    usar: 'Solo en WHERE, como predicado de texto contra literales: ILIKE, LIKE, =, <>, IN (...), IS [NOT] NULL, regexp_matches(col, ''...'') o contains(col, ''...''), opcionalmente con lower/upper/trim/strip_accents. Nunca en SELECT, GROUP BY, ORDER BY, HAVING ni en CAST/substr: el verificador lo rechaza.'
+    estado: verificada
+    consulta: 'SELECT round(100.0*count(EspecificacionProveedor)/count(*),1), round(100.0*count(*) FILTER (WHERE EspecificacionProveedor<>'''')/count(*),1), count(*) FILTER (WHERE regexp_matches(EspecificacionProveedor,''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'')), count(*) FILTER (WHERE regexp_matches(EspecificacionProveedor,''(\+?56)?\s?9\s?[0-9]{4}\s?[0-9]{4}'')) FROM oc_lineas'
+    resultado: '84.2, 75.3, 860, 1462'
   cantidad:
     desc: 'Cantidad pedida de la línea.'
     ojo: 'Rango enorme (hasta 1.700 millones); las unidades varían (UnidadMedida), no sumar cantidades de productos distintos.'
@@ -498,17 +511,24 @@ columnas:
     consulta: 'SELECT count(*) FROM oc_lineas WHERE monedaItem IS DISTINCT FROM TipoMonedaOC'
     resultado: '14'
   precioNeto:
-    desc: 'Precio unitario neto de la línea, en monedaItem.'
-    estado: inferida
-    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+    desc: 'Precio unitario neto de la línea, en monedaItem. totalLineaNeto = cantidad × precioNeto en 341.217 líneas; solo 138 líneas con los tres valores no lo cumplen (diferencias pequeñas).'
+    usar: 'Para "precio unitario" o "precio promedio" de un producto; comparar solo dentro de una misma moneda y UnidadMedida.'
+    ojo: 'Nulo en 6.982 líneas (5.427 de tipo SE). Nunca negativo.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE precioNeto IS NULL), count(*) FILTER (WHERE abs(cantidad*precioNeto - totalLineaNeto) <= 1), count(*) FILTER (WHERE abs(cantidad*precioNeto - totalLineaNeto) > 1), count(*) FILTER (WHERE precioNeto<0) FROM oc_lineas'
+    resultado: '6982, 341217, 138, 0'
   totalCargos:
-    desc: 'Cargos de la línea.'
-    estado: inferida
-    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+    desc: 'Cargos de la línea. Casi nunca se usa: distinto de 0 en 44 líneas (39 órdenes), mientras la orden registra Cargos en 3.423 órdenes.'
+    usar: 'No sumarlo para obtener cargos: los cargos viven en la columna de orden Cargos.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE totalCargos<>0), count(DISTINCT Codigo) FILTER (WHERE totalCargos<>0), count(DISTINCT Codigo) FILTER (WHERE Cargos<>0) FROM oc_lineas'
+    resultado: '44, 39, 3423'
   totalDescuentos:
-    desc: 'Descuentos de la línea.'
-    estado: inferida
-    por_validar: 'se verificó solo indirectamente vía totalLineaNeto'
+    desc: 'Descuentos de la línea. Casi nunca se usa: distinto de 0 en 87 líneas (51 órdenes), mientras la orden registra Descuentos en 1.130 órdenes.'
+    usar: 'No sumarlo para obtener descuentos: los descuentos viven en la columna de orden Descuentos.'
+    estado: verificada
+    consulta: 'SELECT count(*) FILTER (WHERE totalDescuentos<>0), count(DISTINCT Codigo) FILTER (WHERE totalDescuentos<>0), count(DISTINCT Codigo) FILTER (WHERE Descuentos<>0) FROM oc_lineas'
+    resultado: '87, 51, 1130'
   totalImpuestos:
     desc: 'Impuestos de la línea; solo 0 o pocos valores.'
     ojo: 'Nulo en 36 % de las líneas; no confundir con Impuestos (orden).'

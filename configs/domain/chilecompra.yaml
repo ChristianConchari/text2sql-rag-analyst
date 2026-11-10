@@ -7,6 +7,14 @@ limits:
 blocked_columns:
   - RutSucursal    # puede ser el RUT personal de un proveedor persona natural
   - Sucursal       # a veces es el RUT sin puntos
+# Texto libre con correos y teléfonos verificados (glosario, 2026-11-10): solo pueden aparecer dentro de WHERE,
+# en un predicado de texto contra literales (ILIKE, LIKE, =, <>, IN, IS NULL, regexp_matches, contains), opcionalmente
+# envueltas en lower/upper/trim/strip_accents. Nunca en SELECT, GROUP BY, ORDER BY ni en conversiones que puedan
+# fallar (el mensaje de error de DuckDB citaría el valor).
+filter_only_columns:
+  - Descripcion/Obervaciones
+  - EspecificacionComprador
+  - EspecificacionProveedor
 # Se permiten, pero el verificador emite una advertencia (enmascarar en la respuesta).
 restricted_columns:
   - NombreProveedor
