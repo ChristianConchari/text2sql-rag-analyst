@@ -10,8 +10,10 @@ import unicodedata
 
 from src.rag.retrievers.base import Passage
 
-# `[<norma> art. <number>]`; "art", "art." and "artículo" are all accepted when reading an answer.
-CITATION_RE = re.compile(r"\[\s*([^\[\]]*?\S)\s+art(?:\.|[íi]culo)?\s+([^\[\]]*?\S)\s*\]", re.IGNORECASE)
+# `[<norma> art. <number>]`; "art", "art." and "artículo" are all accepted when reading an answer. One bracket may
+# hold several references separated by ";" (`[Decreto 661 art. 59; Ley 19.886 art. 9]`): each is read on its own.
+BRACKET_RE = re.compile(r"\[([^\[\]]*)\]")
+REFERENCE_RE = re.compile(r"\s*(.*?\S)\s+art(?:\.|[íi]culo)?\s+(.*?\S)\s*", re.IGNORECASE)
 
 
 def citation_label(passage: Passage) -> str:
@@ -34,5 +36,15 @@ def passage_key(passage: Passage) -> str:
 
 
 def find_citations(text: str) -> list[tuple[str, str, str]]:
-    """Every citation-shaped bracket in `text` as (raw, norma, article_number), in order of appearance."""
-    return [(m.group(0), m.group(1), m.group(2)) for m in CITATION_RE.finditer(text)]
+    """Every citation-shaped reference in `text` as (raw, norma, article_number), in order of appearance.
+
+    `raw` is the single reference in brackets, e.g. "[Ley 19.886 art. 9]", even when it came from a bracket with
+    several references. Bracket parts that are not citation-shaped are ignored.
+    """
+    found: list[tuple[str, str, str]] = []
+    for bracket in BRACKET_RE.finditer(text):
+        for part in bracket.group(1).split(";"):
+            m = REFERENCE_RE.fullmatch(part)
+            if m:
+                found.append((f"[{part.strip()}]", m.group(1), m.group(2)))
+    return found

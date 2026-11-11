@@ -44,7 +44,20 @@ def test_find_citations_reads_the_accepted_spellings():
     assert [(n, a) for _, n, a in find_citations(text)] == [("Ley 19.886", "7"), ("ley 19886", "8 bis")]
 
 
+def test_one_bracket_may_hold_several_references():
+    text = "Ver [Decreto 661 art. 59; Ley 19.886 art. 9] y [Ley 19.886 art. 21;  nota]."
+    assert find_citations(text) == [("[Decreto 661 art. 59]", "Decreto 661", "59"), ("[Ley 19.886 art. 9]", "Ley 19.886", "9"),
+                                    ("[Ley 19.886 art. 21]", "Ley 19.886", "21")]
+
+
 # ---------- citation verifier ----------
+def test_grouped_references_are_each_verified():
+    ps = [passage("Ley 19886", "9"), passage("Decreto 661", "59")]
+    assert verify_citations("Así es [Decreto 661 art. 59; Ley 19.886 art. 9].", ps).ok
+    v = verify_citations("Así es [Decreto 661 art. 60; Ley 19.886 art. 9].", ps)
+    assert not v.ok and v.violations == ["invented_citation: [Decreto 661 art. 60]"]
+
+
 def test_valid_citations_accepted_and_returned_from_retrieved_passages():
     ps = [passage("Ley 19886", "7"), passage("Decreto 661", "97")]
     v = verify_citations("Se permite [Ley 19.886 art. 7] y se detalla en [Decreto 661 art. 97]. Otra vez [Ley 19886 art. 7].", ps)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import unicodedata
 from typing import Protocol
@@ -46,15 +47,23 @@ class HashEmbedder:
 
 
 class SentenceTransformerEmbedder:
-    """Dense embedder on CPU. Imports sentence-transformers lazily so the core install does not need torch."""
+    """Dense embedder. Imports sentence-transformers lazily so the core install does not need torch.
 
-    def __init__(self, model_name: str = "BAAI/bge-m3", batch_size: int = 16):
+    Device: `device` argument, else the EMBED_DEVICE environment variable, else "cpu". On "cuda" the model runs in
+    fp16 (~1.1 GB for bge-m3) so it fits next to the 14B chat model on a 12 GB GPU. The embedding cache is keyed by
+    text and model, not device: fp16 and fp32 vectors differ slightly, so re-calibrate `min_score` if you switch.
+    """
+
+    def __init__(self, model_name: str = "BAAI/bge-m3", batch_size: int = 16, device: str | None = None):
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError as e:
             raise ImportError("sentence-transformers is not installed; run: UV_TORCH_BACKEND=cpu uv sync --group rag") from e
         self.name, self.batch_size = model_name, batch_size
-        self._model = SentenceTransformer(model_name, device="cpu")
+        self.device = device or os.environ.get("EMBED_DEVICE", "cpu")
+        self._model = SentenceTransformer(model_name, device=self.device)
+        if self.device.startswith("cuda"):
+            self._model.half()
         # e5-style models need role prefixes; bge-m3 does not.
         self._query_prefix, self._doc_prefix = ("query: ", "passage: ") if "e5" in model_name else ("", "")
 

@@ -4,7 +4,7 @@ Final project for *Procesamiento de Lenguaje Natural III* (Master of AI, FIUBA /
 
 The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation design and measurements are documented by the project authors outside this repository.
 
-**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. The document route (dense retrieval with bge-m3, answers with verified article citations) is wired in and tested against a fake LLM. The SQL route has been run end to end with the real model (`qwen2.5-coder:14b` on Ollama, 8k context) on a handful of questions, not yet on the full evaluation sets. A value lookup gives the generator the real spelling of the entities a question names, and the verifier rejects aggregates of order-level amounts over lines. There is no mixed route yet (figures + legal text in one question): the router sends each question to one tool.
+**Status:** data tooling, evaluation harness, the deterministic SQL verifier, the output guardrail and the orchestration skeleton (router, generator⇄verifier loop, composer, FastAPI) exist and are tested against a fake LLM. The document route (dense retrieval with bge-m3, answers with verified article citations) is wired in and tested against a fake LLM. The document route has been run with the real model on its 25 + 5 questions (23/25 answered with valid citations on the first try, 5/5 out-of-corpus refused). The SQL route has been run end to end with the real model (`qwen2.5-coder:14b` on Ollama, 8k context) on a handful of questions, not yet on the full evaluation sets. A value lookup gives the generator the real spelling of the entities a question names, and the verifier rejects aggregates of order-level amounts over lines. There is no mixed route yet (figures + legal text in one question): the router sends each question to one tool.
 
 ## Quick start (fresh clone)
 
@@ -12,6 +12,7 @@ The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation desig
 uv sync                                          # Python >= 3.11; creates .venv
 uv run pytest -q                                 # the whole suite; needs no data and no model (it uses FakeLLM)
 UV_TORCH_BACKEND=cpu uv sync --group rag         # optional: torch + sentence-transformers for the real retriever (~2 GB)
+# On a CUDA GPU: `uv sync --group rag` (default backend) and EMBED_DEVICE=cuda to run bge-m3 in fp16 (~1.1 GB, fits next to the 14B model)
 ```
 
 ## Run the system
