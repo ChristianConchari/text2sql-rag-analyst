@@ -1,0 +1,10 @@
+# Variantes acumulativas de la ablación de la ruta SQL (scripts/eval_sql_ablation.py).
+# Cada variante son interruptores de configs/pipeline/sql_features.yaml. Las reglas de seguridad, el enmascarado y
+# el guardrail de salida están activos en TODAS; `critic` apaga solo la regla order-grain y `retries` el reintento.
+model: qwen2.5-coder:14b-8k        # variante con num_ctx 8192 (infra/ollama/Modelfile.qwen2.5-coder-14b-8k)
+questions: [eval/candidate_questions.yaml, eval/candidate_questions_v2.yaml]
+variants:
+  V0: {glossary: false, value_lookup: false, critic: false, retries: false}   # esquema plano
+  V1: {glossary: true,  value_lookup: false, critic: false, retries: false}   # + glosario
+  V2: {glossary: true,  value_lookup: true,  critic: false, retries: false}   # + búsqueda de valores
+  V3: {glossary: true,  value_lookup: true,  critic: true,  retries: true, max_retries: 3}   # + verificador con reintentos
