@@ -27,6 +27,7 @@ class Attempt:
     sql: str | None
     violations: list[str] = field(default_factory=list)
     error: str | None = None
+    advisory: list[str] = field(default_factory=list)   # critic findings not enforced (critic=False); see Verdict
 
 
 @dataclass
@@ -50,12 +51,15 @@ def extract_sql(raw: str) -> str | None:
 
 
 def run_sql_loop(question: str, llm: ChatModel, policy: Policy, execute: Execute, system_prompt: str,
-                 max_retries: int = 3, dialect: str = DEFAULT_DIALECT, context: str | None = None) -> LoopResult:
+                 max_retries: int = 3, dialect: str = DEFAULT_DIALECT, context: str | None = None,
+                 critic: bool = True) -> LoopResult:
     """Generate, verify and execute SQL for `question`.
 
     status "ok": `sql`/`columns`/`rows` are set (rows masked). "declined": the model answered NO_SQL (the
     question cannot be answered with the data). "failed": retries exhausted or the model call failed.
     `context` (e.g. real values found by the value lookup) is appended to the question as data for the generator.
+    `critic=False` turns off only the semantic critic (order-grain rule); safety rules and masking always apply.
+    `max_retries=0` means a single attempt: any rejection or execution error ends in "failed".
     """
     user = question if not context else f"{question}\n\n{context}"
     messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user}]
@@ -76,7 +80,8 @@ def run_sql_loop(question: str, llm: ChatModel, policy: Policy, execute: Execute
         if sql is None:
             att.violations, feedback = ["empty_response"], "La respuesta no contiene SQL. Responde con un bloque ```sql."
         else:
-            verdict: Verdict = verify(sql, policy, dialect=dialect)
+            verdict: Verdict = verify(sql, policy, dialect=dialect, critic=critic)
+            att.advisory = verdict.advisory
             if not verdict.ok:
                 att.violations = verdict.violations
                 feedback = "El verificador rechazó la consulta: " + "; ".join(verdict.violations) + ". Corrígela."

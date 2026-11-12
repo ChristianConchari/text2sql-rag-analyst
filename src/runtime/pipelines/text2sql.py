@@ -16,11 +16,12 @@ from typing import Any
 from src.agents.orchestration.composer import compose
 from src.agents.orchestration.doc_loop import run_doc_loop
 from src.agents.orchestration.router import route_question
-from src.agents.orchestration.sql_loop import run_sql_loop
+from src.agents.orchestration.sql_loop import LoopResult, run_sql_loop
 from src.policies.sql_verifier import Policy, load_policy
-from src.rag.prompts.sql_prompt import build_schema_context, build_sql_system
+from src.rag.prompts.sql_prompt import build_plain_schema_context, build_schema_context, build_sql_system
 from src.rag.retrievers.base import Retriever
 from src.rag.retrievers.value_index import ValueIndex, format_hits, load_value_lookup_config
+from src.runtime.features import SQLFeatures, load_features
 from src.runtime.providers.llm_client import ChatModel, LLMClient
 from src.toolkits.db.executor import run_query
 
@@ -53,10 +54,26 @@ class Text2SQLPipeline:
     """Wires the model, policy, database and prompt together."""
 
     def __init__(self, llm: ChatModel, policy: Policy, db_path: str | Path, system_prompt: str, max_retries: int = 3,
-                 retriever: Retriever | None = None, value_index: ValueIndex | None = None):
+                 retriever: Retriever | None = None, value_index: ValueIndex | None = None,
+                 features: SQLFeatures | None = None):
         self.llm, self.policy, self.db_path = llm, policy, Path(db_path)
         self.system_prompt, self.max_retries, self.retriever = system_prompt, max_retries, retriever
         self.value_index = value_index
+        # Flags only switch helpers off. `glossary` is applied by whoever builds `system_prompt`; the rest here.
+        self.features = features or SQLFeatures()
+
+    def generate_sql(self, question: str) -> LoopResult:
+        """The SQL route without router or composer: value lookup (if on) + generator/verifier loop.
+
+        Safety rules and masking always apply; `features.critic` / `features.retries` only control the critic and
+        the retries (see configs/pipeline/sql_features.yaml).
+        """
+        f = self.features
+        hits = self.value_index.lookup(question) if (self.value_index and f.value_lookup) else []
+        context = format_hits(hits) if hits else None
+        retries = min(self.max_retries, f.effective_retries)
+        return run_sql_loop(question, self.llm, self.policy, lambda s: run_query(self.db_path, s),
+                            self.system_prompt, retries, context=context, critic=f.critic)
 
     def answer(self, question: str) -> Answer:
         """Answer one question end to end."""
@@ -67,9 +84,7 @@ class Text2SQLPipeline:
             return self._answer_docs(question)
         if route == "unknown":
             return Answer(route, "needs_clarification", "No entendí la pregunta; ¿puedes reformularla?")
-        context = format_hits(self.value_index.lookup(question)) if self.value_index else None
-        res = run_sql_loop(question, self.llm, self.policy, lambda s: run_query(self.db_path, s),
-                           self.system_prompt, self.max_retries, context=context or None)
+        res = self.generate_sql(question)
         if res.status == "declined":
             return Answer(route, "declined", f"Con estos datos no puedo responder: {res.reason or 'sin detalle'}",
                           attempts=len(res.attempts))
@@ -120,10 +135,22 @@ def build_default_value_index(db_path: str | Path) -> ValueIndex | None:
         return None
 
 
-def build_default_pipeline() -> Text2SQLPipeline:
-    """Production wiring: configs/model/llm.yaml, configs/domain/chilecompra.yaml, the glossary; DB_PATH overrides the DB."""
+def build_default_pipeline(features: SQLFeatures | None = None, llm: ChatModel | None = None,
+                           with_retriever: bool = True) -> Text2SQLPipeline:
+    """Production wiring: configs/model/llm.yaml, configs/domain/chilecompra.yaml, the glossary; DB_PATH overrides the DB.
+
+    `features` defaults to configs/pipeline/sql_features.yaml (all on). `llm` and `with_retriever=False` exist for
+    evaluation scripts (a metered model; no need to load the document retriever).
+    """
+    features = features or load_features()
     policy = load_policy(ROOT / "configs/domain/chilecompra.yaml")
-    ctx = build_schema_context(ROOT / "domains/chilecompra/glossary.yaml", policy.blocked_columns)
     db_path = os.environ.get("DB_PATH", ROOT / "data/chilecompra.duckdb")
-    return Text2SQLPipeline(LLMClient.from_config(), policy, db_path, build_sql_system(ctx),
-                            retriever=build_default_retriever(), value_index=build_default_value_index(db_path))
+    if features.glossary:
+        ctx = build_schema_context(ROOT / "domains/chilecompra/glossary.yaml", policy.blocked_columns)
+    else:
+        ctx = build_plain_schema_context(db_path, next(iter(sorted(policy.allowed_tables))), policy.blocked_columns)
+    value_index = build_default_value_index(db_path) if features.value_lookup else None
+    return Text2SQLPipeline(llm or LLMClient.from_config(), policy, db_path, build_sql_system(ctx),
+                            features.max_retries,
+                            retriever=build_default_retriever() if with_retriever else None,
+                            value_index=value_index, features=features)

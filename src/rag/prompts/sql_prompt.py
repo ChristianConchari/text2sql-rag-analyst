@@ -60,6 +60,26 @@ def build_schema_context(glossary_path: str | Path, hidden_columns: set[str] | f
     return "\n".join(lines)
 
 
+def build_plain_schema_context(db_path: str | Path, table: str,
+                               hidden_columns: set[str] | frozenset[str] = frozenset()) -> str:
+    """Flat schema straight from the database (column names and types), no glossary and no business rules.
+
+    Used when the glossary flag is off. Blocked columns stay hidden: that is a safety rule, not a glossary feature.
+    """
+    import duckdb
+    hidden = {c.lower() for c in hidden_columns}
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        cols = con.execute(f'describe "{table}"').fetchall()
+    finally:
+        con.close()
+    lines = [f"Tabla {table}. Columnas (nombre tipo):"]
+    for name, typ, *_ in cols:
+        if name.lower() not in hidden:
+            lines.append(f'- {name if name.isidentifier() else chr(34) + name + chr(34)} {typ}')
+    return "\n".join(lines)
+
+
 def build_sql_system(schema_context: str) -> str:
     """System prompt of the SQL generator: rules + schema context."""
     return SQL_RULES + "\n\n" + schema_context

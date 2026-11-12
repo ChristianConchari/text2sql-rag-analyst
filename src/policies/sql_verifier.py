@@ -92,14 +92,22 @@ class Verdict:
     # Output column names (aliases included) that carry masked data; the output guardrail masks them.
     masked_columns: list[str] = field(default_factory=list)
     flag_column: str | None = None
+    # Critic findings that were NOT enforced because `critic=False` (the order-grain rule). For ablation: tells how
+    # many queries the critic would have rejected. Always empty when the critic is on.
+    advisory: list[str] = field(default_factory=list)
 
 
 def _reject(*violations: str) -> Verdict:
     return Verdict(False, violations=list(violations))
 
 
-def verify(sql: str, policy: Policy, dialect: str = DEFAULT_DIALECT) -> Verdict:
-    """Check `sql` against `policy`. Returns a `Verdict`; the caller must run `verdict.sql`, never the input."""
+def verify(sql: str, policy: Policy, dialect: str = DEFAULT_DIALECT, critic: bool = True) -> Verdict:
+    """Check `sql` against `policy`. Returns a `Verdict`; the caller must run `verdict.sql`, never the input.
+
+    Two kinds of rules. SAFETY rules (read-only, allowed tables, blocked / filter-only columns, forbidden functions,
+    comments, LIMIT, masking) ALWAYS run. The CRITIC rule (order-grain: semantic correctness, not safety) runs only
+    when `critic=True`; with `critic=False` its findings go to `Verdict.advisory` and never reject the query.
+    """
     if not sql or not sql.strip():
         return _reject("empty_query")
     try:
@@ -113,19 +121,22 @@ def verify(sql: str, policy: Policy, dialect: str = DEFAULT_DIALECT) -> Verdict:
     table_violations, referenced_names = _table_violations(tree, policy)
     column_violations, warnings = _column_findings(tree, policy, referenced_names)
     violations = _dedupe(comment_violations + _forbidden_statement_violations(tree) + _function_violations(tree)
-                         + table_violations + column_violations + _filter_only_violations(tree, policy)
-                         + _order_grain_violations(tree, policy))
+                         + table_violations + column_violations + _filter_only_violations(tree, policy))
+    grain = _order_grain_violations(tree, policy)
+    if critic:
+        violations = _dedupe(violations + grain)
+    advisory = [] if critic else _dedupe(grain)
     if violations:
-        return Verdict(False, violations=violations, warnings=warnings)
+        return Verdict(False, violations=violations, warnings=warnings, advisory=advisory)
 
     limit_violation = _enforce_limit(tree, policy)
     if limit_violation:
-        return Verdict(False, violations=[limit_violation], warnings=warnings)
+        return Verdict(False, violations=[limit_violation], warnings=warnings, advisory=advisory)
 
     masking = prepare_masking(tree, policy)
     return Verdict(True, sql=tree.sql(dialect=dialect), warnings=warnings + masking.warnings,
                    masked_columns=masking.masked_columns,
-                   flag_column=policy.flag_column if masking.masked_columns else None)
+                   flag_column=policy.flag_column if masking.masked_columns else None, advisory=advisory)
 
 
 def _comment_violations(sql: str, dialect: str) -> list[str]:

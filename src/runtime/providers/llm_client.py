@@ -63,6 +63,7 @@ class LLMClient:
 
     def __init__(self, config: LLMConfig):
         self.config = config
+        self.last_usage: dict | None = None   # `usage` of the last chat reply as the server sent it; None if absent
 
     @classmethod
     def from_config(cls, path: str | Path = DEFAULT_CONFIG) -> LLMClient:
@@ -96,6 +97,8 @@ class LLMClient:
             "temperature": self.config.temperature if temperature is None else temperature,
             "stream": False,
         })
+        usage = out.get("usage")
+        self.last_usage = usage if isinstance(usage, dict) else None
         try:
             return out["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
@@ -112,6 +115,35 @@ class LLMClient:
         reply = self.chat([{"role": "user", "content": "Responde solo con la palabra OK."}], max_tokens=8)
         return {"base_url": self.config.base_url, "model": self.config.model, "models_s": round(t_models, 2),
                 "chat_s": round(time.time() - t1, 2), "reply": reply.strip()}
+
+
+@dataclass
+class CallRecord:
+    """One model call as seen by `MeteredLLM`. Token counts are None when the server did not report usage."""
+
+    latency_s: float
+    prompt_tokens: int | None
+    completion_tokens: int | None
+
+
+class MeteredLLM:
+    """Wraps a `ChatModel` and records latency and token usage of every call (for evaluation, not production)."""
+
+    def __init__(self, inner: ChatModel):
+        self.inner = inner
+        self.calls: list[CallRecord] = []
+
+    def reset(self) -> None:
+        self.calls = []
+
+    def chat(self, messages: list[dict], max_tokens: int = 512, temperature: float | None = None) -> str:
+        t0 = time.perf_counter()
+        try:
+            return self.inner.chat(messages, max_tokens=max_tokens, temperature=temperature)
+        finally:
+            usage = getattr(self.inner, "last_usage", None) or {}
+            self.calls.append(CallRecord(time.perf_counter() - t0, usage.get("prompt_tokens"),
+                                         usage.get("completion_tokens")))
 
 
 class FakeLLM:

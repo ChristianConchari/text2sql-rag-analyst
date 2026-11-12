@@ -1,0 +1,14 @@
+# Interruptores de la ruta SQL. Todos encendidos = sistema completo (comportamiento por defecto).
+# Existen para la ablación (scripts/eval_sql_ablation.py); en producción no se tocan.
+#
+# SEPARACIÓN seguridad / crítica:
+#   Las reglas de SEGURIDAD del verificador (solo lectura, tablas permitidas, columnas bloqueadas y solo-filtro,
+#   funciones prohibidas, comentarios, LIMIT), el enmascarado y el guardrail de salida están SIEMPRE activas: ningún
+#   interruptor las apaga. Si una consulta las viola se rechaza aunque `critic` esté apagado (sin reintento si
+#   `retries` también está apagado, y la respuesta es "failed").
+#   Lo que se apaga aquí es la CRÍTICA semántica (regla order-grain) y el REINTENTO con retroalimentación.
+glossary: true         # false: el prompt lleva solo el esquema plano (columnas y tipos), sin glosario ni reglas de negocio
+value_lookup: true     # false: no se buscan valores reales de la base para la pregunta
+critic: true           # false: se desactiva la regla order-grain (se sigue evaluando en modo asesor, sin rechazar)
+retries: true          # false: un solo intento, sin retroalimentación del verificador ni de la ejecución
+max_retries: 3         # reintentos máximos cuando retries = true
