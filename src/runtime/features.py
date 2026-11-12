@@ -13,6 +13,12 @@ import yaml
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "configs" / "pipeline" / "sql_features.yaml"
 
 
+# legacy: unchanged prompts. cache_friendly: the composer's system prompt starts with the static SQL block (safe).
+# cache_friendly_router: the router too. EXPERIMENTAL / NOT SAFE: measured to turn refusals into "unknown"/"docs"
+# (eval/results/router_layout_comparison.jsonl), kept only to measure the latency ceiling. Never enable in production.
+PROMPT_LAYOUTS = ("legacy", "cache_friendly", "cache_friendly_router")
+
+
 @dataclass(frozen=True)
 class SQLFeatures:
     glossary: bool = True
@@ -20,6 +26,8 @@ class SQLFeatures:
     critic: bool = True
     retries: bool = True
     max_retries: int = 3
+    prompt_layout: str = "legacy"          # see PROMPT_LAYOUTS
+    max_completion_tokens: int = 700      # cap on the generator's completion
 
     @property
     def effective_retries(self) -> int:
@@ -36,7 +44,11 @@ def features_from_dict(raw: dict | None) -> SQLFeatures:
     unknown = set(raw) - set(SQLFeatures.__dataclass_fields__)
     if unknown:
         raise ValueError(f"unknown SQL feature flags: {sorted(unknown)}")
-    return SQLFeatures(**{k: (int(v) if k == "max_retries" else bool(v)) for k, v in raw.items()})
+    conv = {"max_retries": int, "max_completion_tokens": int, "prompt_layout": str}
+    feats = SQLFeatures(**{k: conv.get(k, bool)(v) for k, v in raw.items()})
+    if feats.prompt_layout not in PROMPT_LAYOUTS:
+        raise ValueError(f"prompt_layout must be one of {PROMPT_LAYOUTS}, got {feats.prompt_layout!r}")
+    return feats
 
 
 def load_features(path: str | Path = DEFAULT_PATH) -> SQLFeatures:

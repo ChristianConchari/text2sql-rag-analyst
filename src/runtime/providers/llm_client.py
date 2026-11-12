@@ -69,10 +69,11 @@ class LLMClient:
     def from_config(cls, path: str | Path = DEFAULT_CONFIG) -> LLMClient:
         return cls(load_config(path))
 
-    def _request(self, method: str, path: str, body: dict | None = None, timeout: float | None = None) -> dict:
+    def _request(self, method: str, path: str, body: dict | None = None, timeout: float | None = None,
+                 base_url: str | None = None) -> dict:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
-            self.config.base_url + path, data=data, method=method, headers={"Content-Type": "application/json"}
+            (base_url or self.config.base_url) + path, data=data, method=method, headers={"Content-Type": "application/json"}
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.config.timeout_s) as resp:
@@ -117,6 +118,41 @@ class LLMClient:
                 "chat_s": round(time.time() - t1, 2), "reply": reply.strip()}
 
 
+class OllamaNativeClient(LLMClient):
+    """`LLMClient` over Ollama's native /api/chat, for evaluation: it exposes the server-side timings.
+
+    Same configuration and `chat` contract as `LLMClient`; `last_usage` additionally carries Ollama's
+    `prompt_eval_count`, `prompt_eval_duration`, `eval_count`, `eval_duration` and `load_duration` (nanoseconds).
+    `prompt_eval_count` includes tokens served from the KV cache; `prompt_eval_duration` is the time actually
+    spent processing the prompt, so it is the metric that shows cache reuse. `keep_alive` (e.g. "30m") is optional.
+    """
+
+    def __init__(self, config: LLMConfig, keep_alive: str | None = None):
+        super().__init__(config)
+        self.keep_alive = keep_alive
+
+    def _native_base(self) -> str:
+        return self.config.base_url.removesuffix("/v1")
+
+    def chat(self, messages: list[dict], max_tokens: int = 512, temperature: float | None = None) -> str:
+        body = {"model": self.config.model, "messages": messages, "stream": False,
+                "options": {"num_predict": max_tokens,
+                            "temperature": self.config.temperature if temperature is None else temperature}}
+        if self.keep_alive:
+            body["keep_alive"] = self.keep_alive
+        out = self._request("POST", "/api/chat", body, base_url=self._native_base())
+        try:
+            text = out["message"]["content"]
+        except (KeyError, TypeError) as e:
+            raise LLMError(f"unexpected response shape: {str(out)[:200]}") from e
+        keys = ("prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration", "load_duration",
+                "total_duration")
+        self.last_usage = {k: out.get(k) for k in keys}
+        self.last_usage["prompt_tokens"], self.last_usage["completion_tokens"] = out.get("prompt_eval_count"), out.get("eval_count")
+        self.last_usage["done_reason"] = out.get("done_reason")
+        return text
+
+
 @dataclass
 class CallRecord:
     """One model call as seen by `MeteredLLM`. Token counts are None when the server did not report usage."""
@@ -124,6 +160,7 @@ class CallRecord:
     latency_s: float
     prompt_tokens: int | None
     completion_tokens: int | None
+    stats: dict | None = None        # the client's full `last_usage` (Ollama native timings when available)
 
 
 class MeteredLLM:
@@ -143,7 +180,7 @@ class MeteredLLM:
         finally:
             usage = getattr(self.inner, "last_usage", None) or {}
             self.calls.append(CallRecord(time.perf_counter() - t0, usage.get("prompt_tokens"),
-                                         usage.get("completion_tokens")))
+                                         usage.get("completion_tokens"), dict(usage) or None))
 
 
 class FakeLLM:

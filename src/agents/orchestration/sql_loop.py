@@ -52,7 +52,7 @@ def extract_sql(raw: str) -> str | None:
 
 def run_sql_loop(question: str, llm: ChatModel, policy: Policy, execute: Execute, system_prompt: str,
                  max_retries: int = 3, dialect: str = DEFAULT_DIALECT, context: str | None = None,
-                 critic: bool = True) -> LoopResult:
+                 critic: bool = True, max_completion_tokens: int = 700) -> LoopResult:
     """Generate, verify and execute SQL for `question`.
 
     status "ok": `sql`/`columns`/`rows` are set (rows masked). "declined": the model answered NO_SQL (the
@@ -66,7 +66,7 @@ def run_sql_loop(question: str, llm: ChatModel, policy: Policy, execute: Execute
     res = LoopResult(status="failed")
     for _ in range(1 + max_retries):
         try:
-            raw = llm.chat(messages, max_tokens=700, temperature=0)
+            raw = llm.chat(messages, max_tokens=max_completion_tokens, temperature=0)
         except LLMError as e:
             res.reason = f"llm_error: {e}"
             return res

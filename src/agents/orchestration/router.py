@@ -14,10 +14,15 @@ from src.runtime.providers.llm_client import ChatModel, LLMError
 ROUTES = ("sql", "docs", "refuse")
 
 
-def route_question(question: str, llm: ChatModel) -> str:
-    """Return 'sql' | 'docs' | 'refuse' | 'unknown' (unparseable or LLM failure: never guess)."""
+def route_question(question: str, llm: ChatModel, static_prefix: str | None = None) -> str:
+    """Return 'sql' | 'docs' | 'refuse' | 'unknown' (unparseable or LLM failure: never guess).
+
+    `static_prefix` (layout cache_friendly): text placed before the unchanged router instruction so the model
+    server can reuse its prefix cache across agents. The instruction itself is not modified.
+    """
+    system = ROUTER_SYSTEM if static_prefix is None else static_prefix + "\n\n" + ROUTER_SYSTEM
     try:
-        raw = llm.chat([{"role": "system", "content": ROUTER_SYSTEM}, {"role": "user", "content": question}],
+        raw = llm.chat([{"role": "system", "content": system}, {"role": "user", "content": question}],
                        max_tokens=32, temperature=0)
     except LLMError:
         return "unknown"

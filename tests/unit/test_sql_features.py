@@ -141,3 +141,64 @@ def test_metered_llm_records_usage_or_none():
     m2 = MeteredLLM(FakeLLM(["b"]))
     m2.chat([{"role": "user", "content": "x"}])
     assert m2.calls[0].prompt_tokens is None
+
+
+# ---------- prompt layout (prefix cache) ----------
+def _pipe(db, llm, layout):
+    return Text2SQLPipeline(llm, POLICY, db, "STATIC-SQL-BLOCK", 3, features=features_from_dict({"prompt_layout": layout}))
+
+
+def _run(db, layout, question):
+    llm = FakeLLM(['{"route": "sql"}', block("SELECT Codigo FROM oc_lineas"), "Respuesta."])
+    a = _pipe(db, llm, layout).answer(question)
+    assert a.status == "ok"
+    return llm.calls
+
+
+def test_legacy_layout_prompts_are_unchanged(db):
+    from src.rag.prompts.sql_prompt import COMPOSER_SYSTEM, ROUTER_SYSTEM
+    router, gen, comp = _run(db, "legacy", "¿Cuántas?")
+    assert router[0]["content"] == ROUTER_SYSTEM and comp[0]["content"] == COMPOSER_SYSTEM
+    assert gen[0]["content"] == "STATIC-SQL-BLOCK" and gen[1]["content"] == "¿Cuántas?"
+
+
+def test_cache_friendly_prefixes_only_the_composer_and_keeps_the_router_prompt(db):
+    from src.rag.prompts.sql_prompt import COMPOSER_SYSTEM, ROUTER_SYSTEM
+    router, gen, comp = _run(db, "cache_friendly", "¿Cuántas?")
+    assert router[0]["content"] == ROUTER_SYSTEM            # the router stays as is: refusals are a safety property
+    assert gen[0]["content"] == "STATIC-SQL-BLOCK"
+    assert comp[0]["content"] == "STATIC-SQL-BLOCK\n\n" + COMPOSER_SYSTEM
+
+
+def test_experimental_router_layout_prefixes_every_agent(db):
+    from src.rag.prompts.sql_prompt import ROUTER_SYSTEM
+    router, gen, comp = _run(db, "cache_friendly_router", "¿Cuántas?")
+    assert all(c[0]["content"].startswith("STATIC-SQL-BLOCK") for c in (router, gen, comp))
+    assert router[0]["content"].endswith(ROUTER_SYSTEM)
+
+
+def test_cache_friendly_prefix_identical_across_different_questions(db):
+    a = _run(db, "cache_friendly_router", "¿Cuántas órdenes?")
+    b = _run(db, "cache_friendly_router", "¿Qué organismos compran más?")
+    for ca, cb in zip(a, b):                       # router, generator, composer
+        assert ca[0] == cb[0]                      # system message: byte-identical, nothing variable before the tail
+    assert a[1][-1]["content"] != b[1][-1]["content"]   # the question is the variable tail
+
+
+def test_invalid_layout_is_rejected():
+    with pytest.raises(ValueError):
+        features_from_dict({"prompt_layout": "otro"})
+
+
+def test_max_completion_tokens_reaches_the_model(db):
+    seen = []
+
+    class Spy(FakeLLM):
+        def chat(self, messages, max_tokens=512, temperature=None):
+            seen.append(max_tokens)
+            return super().chat(messages, max_tokens, temperature)
+
+    p = Text2SQLPipeline(Spy([block("SELECT Codigo FROM oc_lineas")]), POLICY, db, "sys", 3,
+                         features=features_from_dict({"max_completion_tokens": 123}))
+    p.generate_sql("q")
+    assert seen == [123]

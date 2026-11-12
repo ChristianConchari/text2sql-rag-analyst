@@ -62,6 +62,17 @@ class Text2SQLPipeline:
         # Flags only switch helpers off. `glossary` is applied by whoever builds `system_prompt`; the rest here.
         self.features = features or SQLFeatures()
 
+    def _shared_prefix(self, agent: str) -> str | None:
+        """Static SQL block to put before an agent's unchanged instruction (see features.PROMPT_LAYOUTS), else None.
+
+        The goal is that a single-slot model server keeps the SQL prefix cached while agents alternate. The router
+        only gets it in the experimental `cache_friendly_router` layout: it weakens refusals, so it is not safe.
+        """
+        layout = self.features.prompt_layout
+        if layout == "legacy" or (agent == "router" and layout != "cache_friendly_router"):
+            return None
+        return self.system_prompt
+
     def generate_sql(self, question: str) -> LoopResult:
         """The SQL route without router or composer: value lookup (if on) + generator/verifier loop.
 
@@ -73,11 +84,12 @@ class Text2SQLPipeline:
         context = format_hits(hits) if hits else None
         retries = min(self.max_retries, f.effective_retries)
         return run_sql_loop(question, self.llm, self.policy, lambda s: run_query(self.db_path, s),
-                            self.system_prompt, retries, context=context, critic=f.critic)
+                            self.system_prompt, retries, context=context, critic=f.critic,
+                            max_completion_tokens=f.max_completion_tokens)
 
     def answer(self, question: str) -> Answer:
         """Answer one question end to end."""
-        route = route_question(question, self.llm)
+        route = route_question(question, self.llm, self._shared_prefix("router"))
         if route == "refuse":
             return Answer(route, "refused", "No puedo ayudar con esa solicitud.")
         if route == "docs":
@@ -91,7 +103,7 @@ class Text2SQLPipeline:
         if res.status == "failed":
             return Answer(route, "failed", "No logré generar una consulta válida para tu pregunta.",
                           attempts=len(res.attempts), warnings=[res.reason] if res.reason else [])
-        text = compose(question, res.columns, res.rows, self.llm)
+        text = compose(question, res.columns, res.rows, self.llm, self._shared_prefix("composer"))
         return Answer(route, "ok", text, res.sql, res.columns, [list(r) for r in res.rows],
                       res.warnings, len(res.attempts))
 
