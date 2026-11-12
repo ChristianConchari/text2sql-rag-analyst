@@ -23,7 +23,6 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-import duckdb
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +31,7 @@ sys.path.insert(0, str(ROOT))
 from src.eval.scoring import score_rows  # noqa: E402
 from src.runtime.features import features_from_dict  # noqa: E402
 from src.runtime.pipelines.text2sql import build_default_pipeline  # noqa: E402
+from src.toolkits.db.executor import run_query  # noqa: E402
 from src.runtime.providers.llm_client import LLMClient, MeteredLLM, load_config  # noqa: E402
 
 CONFIG = ROOT / "configs/eval/sql_ablation.yaml"
@@ -60,7 +60,6 @@ def run_variant(name: str, flags: dict, questions: list[dict], meta: dict, llm: 
     meter = MeteredLLM(llm)
     pipe = build_default_pipeline(features_from_dict(flags), llm=meter, with_retriever=False)
     meter.chat([{"role": "user", "content": "Responde OK."}], max_tokens=4)    # warm-up: keep model load out of latency
-    con = duckdb.connect(str(db), read_only=True)
     rows = []
     with out.open("w", encoding="utf-8") as fh:
         for i, q in enumerate(questions, 1):
@@ -72,7 +71,7 @@ def run_variant(name: str, flags: dict, questions: list[dict], meta: dict, llm: 
             score_error = None
             if res.status == "ok":
                 try:
-                    strict, lenient = score_rows(q["sql"], con.execute(q["sql"]).fetchall(), con.execute(res.sql).fetchall())
+                    strict, lenient = score_rows(q["sql"], run_query(db, q["sql"])[1], run_query(db, res.sql)[1])
                 except Exception as e:  # noqa: BLE001 - a scoring failure is a miss, recorded
                     score_error = str(e)[:200]
             calls = meter.calls
