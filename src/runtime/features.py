@@ -13,9 +13,10 @@ import yaml
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "configs" / "pipeline" / "sql_features.yaml"
 
 
-# legacy: unchanged prompts. cache_friendly: the composer's system prompt starts with the static SQL block (safe).
-# cache_friendly_router: the router too. EXPERIMENTAL / NOT SAFE: measured to turn refusals into "unknown"/"docs"
-# (eval/results/router_layout_comparison.jsonl), kept only to measure the latency ceiling. Never enable in production.
+# legacy: unchanged prompts (the only supported layout). The other two were MEASURED NOT VIABLE and exist only to
+# reproduce the measurement (eval/results/prefix_cache_*, router_layout_comparison.jsonl): prefixing the 6.6k-token SQL
+# block makes the composer answer with SQL instead of prose (cache_friendly) and weakens router refusals
+# (cache_friendly_router). Never enable them in production.
 PROMPT_LAYOUTS = ("legacy", "cache_friendly", "cache_friendly_router")
 
 

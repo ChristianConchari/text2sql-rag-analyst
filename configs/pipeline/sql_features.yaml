@@ -12,9 +12,8 @@ value_lookup: true     # false: no se buscan valores reales de la base para la p
 critic: true           # false: se desactiva la regla order-grain (se sigue evaluando en modo asesor, sin rechazar)
 retries: true          # false: un solo intento, sin retroalimentación del verificador ni de la ejecución
 max_retries: 3         # reintentos máximos cuando retries = true
-# Caché de prefijo del servidor de modelos (Ollama reutiliza la caché KV si el inicio del prompt coincide):
-#   legacy         prompts como siempre (router, generador y compositor con system prompts distintos).
-#   cache_friendly router y compositor anteponen a su instrucción (texto intacto) el mismo bloque estático del
-#                  generador SQL, de modo que alternar agentes no desaloja ese prefijo del único slot del servidor.
+# Caché de prefijo del servidor de modelos: SOLO `legacy` es válido para uso. `cache_friendly` (compositor) y
+# `cache_friendly_router` anteponen el bloque estático SQL a la instrucción del agente; se midieron y NO son viables
+# (el compositor responde SQL y el router deja de rechazar). Existen para reproducir la medición.
 prompt_layout: legacy
-max_completion_tokens: 700   # tope de tokens de la respuesta del generador SQL
+max_completion_tokens: 700   # tope de tokens de la respuesta del generador SQL (máx. observado: 291)
