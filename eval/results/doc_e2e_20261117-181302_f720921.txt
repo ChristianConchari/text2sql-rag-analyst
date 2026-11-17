@@ -1,0 +1,42 @@
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 65166.21it/s]
+d01  route=docs         status=ok              cites=1 gold_hit=True  'El Tribunal de Contratación Público [Ley 19.886 art. 24].'
+d02  route=docs         status=ok              cites=5 gold_hit=True  'Según los fragmentos proporcionados:\n\n1. Cuando no se ajustan a los requerimientos señalad'
+d03  route=docs         status=ok              cites=2 gold_hit=True  'Una licitación privada se puede hacer en lugar de una pública si:\n\n1. En las licitaciones '
+d04  route=docs         status=ok              cites=1 gold_hit=False  'Las situaciones que permiten contratar a un proveedor sin licitación, por trato directo, s'
+d05  route=docs         status=ok              cites=2 gold_hit=True  'Según el fragmento [Ley 19.886 art. 8 quáter], la compra por cotización procederá cuando:\n'
+d06  route=docs         status=ok              cites=2 gold_hit=True  'El contrato se adjudicará mediante resolución fundada de la autoridad competente, comunica'
+d07  route=docs         status=ok              cites=1 gold_hit=True  'Cada institución deberá elaborar y evaluar periódicamente un Plan Anual de Compras y Contr'
+d08  route=docs         status=ok              cites=2 gold_hit=True  'Sí, se puede poner fin a un contrato antes de que termine su plazo por las siguientes caus'
+d09  route=docs         status=ok              cites=1 gold_hit=True  'Según los fragmentos proporcionados:\n\n- Las personas naturales y jurídicas, chilenas o ext'
+d10  route=docs         status=ok              cites=3 gold_hit=True  'Un organismo puede comprar sin usar el sistema de información de compras en las siguientes'
+d11  route=docs         status=declined        cites=0 gold_hit=False  'Con los textos recuperados no puedo responder: Los fragmentos proporcionados no contienen '
+d12  route=docs         status=ok              cites=1 gold_hit=True  'Una Unión Temporal de Proveedores es un conjunto de empresas de menor tamaño, personas nat'
+d13  route=docs         status=ok              cites=2 gold_hit=True  'Una persona interesada puede deducir una reclamación administrativa contra las acciones u '
+d14  route=docs         status=ok              cites=1 gold_hit=True  'El Sistema de Información y Gestión de Compras y Contrataciones del Estado está a cargo de'
+d15  route=docs         status=ok              cites=1 gold_hit=True  'Según [Ley 19.886 art. 60], se puede proceder con la contratación directa con publicidad c'
+d16  route=docs         status=ok              cites=1 gold_hit=True  'Sí, pueden contratar con el Estado empresas o personas extranjeras [Ley 19.886 art. 4].'
+d17  route=docs         status=ok              cites=2 gold_hit=True  'Según el fragmento [Ley 19.886 art. 2], un contrato de suministro es aquel que tiene por o'
+d18  route=docs         status=ok              cites=2 gold_hit=True  'Los contratos excluidos de la aplicación de la Ley 19.886 son:\n\na) Contrataciones de perso'
+d19  route=docs         status=ok              cites=1 gold_hit=True  'La fragmentación cuyo efecto implique eludir y evadir la obligación de realizar una licita'
+d20  route=docs         status=ok              cites=2 gold_hit=True  'La identidad del denunciante, el contenido de la denuncia y demás antecedentes de respaldo'
+d21  route=docs         status=ok              cites=1 gold_hit=True  'Las entidades que compran deben resguardar la probidad y transparencia en los procesos de '
+d22  route=docs         status=declined        cites=0 gold_hit=False  'Con los textos recuperados no puedo responder: Los fragmentos proporcionados no contienen '
+d23  route=docs         status=ok              cites=1 gold_hit=True  'Los proveedores deben acreditar la existencia de programas de integridad y ética empresari'
+d24  route=docs         status=ok              cites=1 gold_hit=True  'El Manual de Procedimientos de Adquisiciones y de Gestión de Contratos es un documento que'
+d25  route=docs         status=ok              cites=1 gold_hit=True  'El reglamento define los siguientes términos:\n\n- **Adjudicación**: Acto administrativo por'
+x01  route=out_of_scope status=out_of_scope    cites=0 gold_hit=None  'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley'
+x02  route=out_of_scope status=out_of_scope    cites=0 gold_hit=None  'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley'
+x03  route=out_of_scope status=out_of_scope    cites=0 gold_hit=None  'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley'
+x04  route=out_of_scope status=out_of_scope    cites=0 gold_hit=None  'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley'
+x05  route=sql          status=ok              cites=0 gold_hit=None  'El monto total comprado por los organismos de salud durante enero de 2026 fue de 454,951,7'
+
+wrote /home/chris/Documents/MIA/text2sql-rag-analyst/eval/results/doc_e2e_20261117-181302_f720921.jsonl  (model qwen2.5-coder:14b-8k, temperature 0)
+in-corpus (25): routed docs 25; status ok 23; ok on first try 23; with >=1 citation 23; citation hits gold/gold_extra 22/23
+  status declined: ['d11', 'd22']
+  status ok: ['d01', 'd02', 'd03', 'd04', 'd05', 'd06', 'd07', 'd08', 'd09', 'd10', 'd12', 'd13', 'd14', 'd15', 'd16', 'd17', 'd18', 'd19', 'd20', 'd21', 'd23', 'd24', 'd25']
+out-of-corpus (5): route as expected 5/5
+  x01 expect=out_of_scope route=out_of_scope status=out_of_scope cites=0: 'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley 19.886 y su reglame'
+  x02 expect=out_of_scope route=out_of_scope status=out_of_scope cites=0: 'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley 19.886 y su reglame'
+  x03 expect=out_of_scope route=out_of_scope status=out_of_scope cites=0: 'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley 19.886 y su reglame'
+  x04 expect=out_of_scope|docs route=out_of_scope status=out_of_scope cites=0: 'Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley 19.886 y su reglame'
+  x05 expect=sql route=sql status=ok cites=0: 'El monto total comprado por los organismos de salud durante enero de 2026 fue de 454,951,755,329.\n\nSupuestos r'

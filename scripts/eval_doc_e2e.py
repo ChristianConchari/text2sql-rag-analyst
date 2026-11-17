@@ -47,7 +47,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out-dir", type=Path, default=ROOT / "eval/results")
     args = ap.parse_args()
-    commit = git("rev-parse", "--short", "HEAD") + ("-dirty" if git("status", "--porcelain") else "")
+    dirty = git("status", "--porcelain", "--untracked-files=no")   # untracked result files do not count
+    commit = git("rev-parse", "--short", "HEAD") + ("-dirty" if dirty else "")
     questions = yaml.safe_load((ROOT / "eval/doc_questions.yaml").read_text(encoding="utf-8"))
     pipe = build_default_pipeline(llm=OllamaNativeClient(replace(load_config(), model=MODEL, temperature=0.0)))
     if pipe.retriever is None:
@@ -75,7 +76,8 @@ def main() -> None:
     outside = [r for r in rows if r["out_of_corpus"]]
     ok = [r for r in inside if r["status"] == "ok"]
     print(f"in-corpus ({len(inside)}): routed docs {sum(r['route'] == 'docs' for r in inside)}; status ok {len(ok)}; "
-          f"ok on first try {sum(r['attempts'] == 1 for r in ok)}; with >=1 citation {sum(r['n_citations'] > 0 for r in ok)}; "
+          f"ok on first try {sum(r['attempts'] == 1 for r in ok)}; "
+          f"with >=1 citation {sum(r['n_citations'] > 0 for r in ok)}; "
           f"citation hits gold/gold_extra {sum(bool(r['gold_hit']) for r in ok)}/{len(ok)}")
     for s in sorted({r["status"] for r in inside}):
         print(f"  status {s}: {[r['id'] for r in inside if r['status'] == s]}")

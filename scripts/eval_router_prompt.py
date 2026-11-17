@@ -80,7 +80,8 @@ def main() -> None:
     old_prompt = router_prompt_at(args.old_ref)
     if old_prompt == ROUTER_SYSTEM:
         print(f"WARNING: the router prompt at {args.old_ref} equals the current one")
-    commit = git("rev-parse", "--short", "HEAD") + ("-dirty" if git("status", "--porcelain") else "")
+    dirty = git("status", "--porcelain", "--untracked-files=no")   # untracked result files do not count
+    commit = git("rev-parse", "--short", "HEAD") + ("-dirty" if dirty else "")
     cases = router_case_set()
     llm = OllamaNativeClient(replace(load_config(), model=ABL["model"], temperature=0.0))
     rows = [dict(c) for c in cases]

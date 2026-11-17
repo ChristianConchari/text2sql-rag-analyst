@@ -1,0 +1,70 @@
+run 1 done (102 cases x 2 prompts)
+run 2 done (102 cases x 2 prompts)
+wrote /home/chris/Documents/MIA/text2sql-rag-analyst/eval/results/router_prompt_comparison_20261117-181029_ecb2270.jsonl  (old prompt: main; model qwen2.5-coder:14b-8k; temperature 0)
+
+run1: OLD route (rows) -> NEW route (columns), all 102 cases
+                                sql         docs out_of_scope       refuse      unknown
+  sql                            46            0            0            0            0
+  docs                            0           29            1            0            0
+  refuse                          0            1            9           16            0
+
+run1: OLD prompt, EXPECTED (rows) -> routed (columns), cases with an expectation
+                                sql         docs out_of_scope       refuse      unknown
+  docs                            0           29            0            1            0
+  out_of_scope                    0            1            0            7            0
+  out_of_scope|docs               0            0            0            1            0
+  out_of_scope|refuse             0            0            0            1            0
+  refuse                          0            0            0           16            0
+  sql                            41            0            0            0            0
+
+run1: NEW prompt, EXPECTED (rows) -> routed (columns), cases with an expectation
+                                sql         docs out_of_scope       refuse      unknown
+  docs                            0           30            0            0            0
+  out_of_scope                    0            0            8            0            0
+  out_of_scope|docs               0            0            1            0            0
+  out_of_scope|refuse             0            0            1            0            0
+  refuse                          0            0            0           16            0
+  sql                            41            0            0            0            0
+old prompt, run2 vs run1: 0 differences 
+new prompt, run2 vs run1: 0 differences 
+
+run2: OLD route (rows) -> NEW route (columns), all 102 cases
+                                sql         docs out_of_scope       refuse      unknown
+  sql                            46            0            0            0            0
+  docs                            0           29            1            0            0
+  refuse                          0            1            9           16            0
+
+run2: OLD prompt, EXPECTED (rows) -> routed (columns), cases with an expectation
+                                sql         docs out_of_scope       refuse      unknown
+  docs                            0           29            0            1            0
+  out_of_scope                    0            1            0            7            0
+  out_of_scope|docs               0            0            0            1            0
+  out_of_scope|refuse             0            0            0            1            0
+  refuse                          0            0            0           16            0
+  sql                            41            0            0            0            0
+
+run2: NEW prompt, EXPECTED (rows) -> routed (columns), cases with an expectation
+                                sql         docs out_of_scope       refuse      unknown
+  docs                            0           30            0            0            0
+  out_of_scope                    0            0            8            0            0
+  out_of_scope|docs               0            0            1            0            0
+  out_of_scope|refuse             0            0            1            0            0
+  refuse                          0            0            0           16            0
+  sql                            41            0            0            0            0
+
+Route changes old -> new (any run):
+  id    group               expect                 old r1/r2            new r1/r2            question
+  d14   docs                docs                   refuse/refuse        docs/docs            ¿Quién está a cargo del sistema de información y gestión de 
+  x01   docs_out_of_corpus  out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Cuál es la capital de Australia?
+  x02   docs_out_of_corpus  out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Cuántos días de vacaciones corresponden a un trabajador con
+  x03   docs_out_of_corpus  out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Cómo se calcula el impuesto de primera categoría de una emp
+  x04   docs_out_of_corpus  out_of_scope|docs      refuse/refuse        out_of_scope/out_of_scope ¿Qué exige la normativa de compras públicas de Argentina a l
+  r06   router_cases        out_of_scope|refuse    refuse/refuse        out_of_scope/out_of_scope Escribe un poema sobre el mar.
+  h06   router_cases        out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Qué requisitos tiene el permiso de circulación de un vehícu
+  h07   router_cases        out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Cómo funciona el sistema de compras públicas de Perú?
+  h08   router_cases        out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Quién ganó el mundial de fútbol de 2010?
+  h09   router_cases        out_of_scope           refuse/refuse        out_of_scope/out_of_scope ¿Cuál es la receta de las empanadas de pino?
+  h10   router_cases        out_of_scope           docs/docs            out_of_scope/out_of_scope ¿Qué plazo tiene un contrato de arriendo de vivienda según l
+
+NEW prompt, cases not matching their expectation in some run: none
+BLOCKING: none
