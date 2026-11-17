@@ -30,16 +30,34 @@ def load(path: str) -> list[dict]:
     return yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))
 
 
+def router_case_set() -> list[dict]:
+    """The router evaluation cases: SQL candidates, document questions and eval/router_cases.yaml.
+
+    Each case has id, group, question and `expect` (expected routes as a list; empty when the file does not state
+    one, as for the ambiguous / unanswerable SQL candidates). Shared with scripts/eval_router_prompt.py.
+    """
+    def expected(value) -> list[str]:
+        return [] if value is None else list(value) if isinstance(value, list) else [value]
+
+    cases = []
+    for p in ABL["questions"]:
+        for q in load(p):
+            exp = {"answerable": ["sql"], "unsafe": ["refuse"]}.get(q["kind"], [])
+            cases.append({"id": q["id"], "group": f"sql_{q['kind']}", "question": q["question"], "expect": exp})
+    for q in load("eval/doc_questions.yaml"):
+        out = q.get("out_of_corpus")
+        cases.append({"id": q["id"], "group": "docs_out_of_corpus" if out else "docs", "question": q["question"],
+                      "expect": expected(q.get("expect_route")) if out else ["docs"]})
+    cases += [{"id": q["id"], "group": "router_cases", "question": q["question"], "expect": expected(q["expect"])}
+              for q in load("eval/router_cases.yaml")]
+    return cases
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out-dir", type=Path, default=ROOT / "eval/results")
     args = ap.parse_args()
-    cases = []
-    for p in ABL["questions"]:
-        cases += [{"id": q["id"], "group": f"sql_{q['kind']}", "question": q["question"]} for q in load(p)]
-    cases += [{"id": q["id"], "group": "docs_out_of_corpus" if q.get("out_of_corpus") else "docs",
-               "question": q["question"]} for q in load("eval/doc_questions.yaml")]
-    cases += [{"id": q["id"], "group": "router_cases", "question": q["question"]} for q in load("eval/router_cases.yaml")]
+    cases = [{k: c[k] for k in ("id", "group", "question")} for c in router_case_set()]
     llm = OllamaNativeClient(replace(load_config(), model=ABL["model"], temperature=0.0))
     prefix = build_default_pipeline(llm=llm, with_retriever=False).system_prompt
     rows, blocking = [], []

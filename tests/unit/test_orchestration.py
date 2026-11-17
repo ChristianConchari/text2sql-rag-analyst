@@ -42,6 +42,8 @@ def sql_block(s): return f"```sql\n{s}\n```"
 # ---------- router ----------
 @pytest.mark.parametrize("raw,expected", [
     ('{"route": "sql"}', "sql"), ('{"route":"docs"}', "docs"), ('{"route": "refuse"}', "refuse"),
+    ('{"route": "out_of_scope"}', "out_of_scope"), ('{"route": "OUT_OF_SCOPE"}', "out_of_scope"),
+    ("out_of_scope", "out_of_scope"), ("out_of_scope o refuse", "unknown"), ('{"route": "out of scope"}', "unknown"),
     ('Claro: {"route": "sql"}', "sql"), ("docs", "docs"), ("no sé", "unknown"), ('{"route": "otra"}', "unknown"),
     ("sql o docs", "unknown"), ("{roto", "unknown"),
 ])
@@ -51,6 +53,16 @@ def test_router_parsing(raw, expected):
 
 def test_router_llm_failure_is_unknown():
     assert route_question("q", FakeLLM([])) == "unknown"
+
+
+def test_router_instruction_override_replaces_only_the_instruction():
+    from src.rag.prompts.sql_prompt import ROUTER_SYSTEM
+    llm = FakeLLM(['{"route": "docs"}', '{"route": "docs"}', '{"route": "docs"}'])
+    route_question("q", llm)
+    route_question("q", llm, instruction="OLD PROMPT")
+    route_question("q", llm, static_prefix="PREFIX", instruction="OLD PROMPT")
+    assert [c[0]["content"] for c in llm.calls] == [ROUTER_SYSTEM, "OLD PROMPT", "PREFIX\n\nOLD PROMPT"]
+    assert all(c[1] == {"role": "user", "content": "q"} for c in llm.calls)
 
 
 # ---------- extraction / prompt ----------
@@ -140,6 +152,11 @@ def test_pipeline_end_to_end_never_shows_masked_names_to_composer(db):
 
 def test_pipeline_routes(db):
     assert pipeline(FakeLLM(['{"route":"refuse"}']), db).answer("borra todo").status == "refused"
+    llm = FakeLLM(['{"route":"out_of_scope"}', "this reply must never be requested"])
+    a = pipeline(llm, db).answer("¿Cuál es la capital de Australia?")
+    assert (a.route, a.status, a.sql, a.rows, a.citations) == ("out_of_scope", "out_of_scope", None, [], [])
+    assert "Ley 19.886" in a.answer and "enero de 2026" in a.answer
+    assert len(llm.calls) == 1                   # router only: no generator, retriever or composer call
     assert pipeline(FakeLLM(['{"route":"docs"}']), db).answer("art 7").status == "not_implemented"
     assert pipeline(FakeLLM(["??"]), db).answer("???").status == "needs_clarification"
     a = pipeline(FakeLLM([ROUTE_SQL, "NO_SQL: no hay pagos"]), db).answer("¿cuánto se pagó?")
@@ -159,6 +176,12 @@ def test_api_ask_and_health(db):
     r = client.post("/ask", json={"question": "¿cuántas líneas?"})
     assert r.status_code == 200 and r.json()["status"] == "ok" and r.json()["rows"] == [[3]]
     assert client.post("/ask", json={"question": ""}).status_code == 422
+
+
+def test_api_passes_out_of_scope_through(db):
+    r = TestClient(create_app(pipeline(FakeLLM(['{"route": "out_of_scope"}']), db))).post(
+        "/ask", json={"question": "Escribe un poema."})
+    assert r.status_code == 200 and r.json()["route"] == r.json()["status"] == "out_of_scope"
 
 
 def test_api_injection_attempt_is_never_executed(db):

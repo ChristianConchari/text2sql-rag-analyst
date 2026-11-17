@@ -29,6 +29,8 @@ ROOT = Path(__file__).resolve().parents[3]
 log = logging.getLogger(__name__)
 
 NO_EVIDENCE_TEXT = "No encontré evidencia en la Ley 19.886 ni en su reglamento para responder esa pregunta."
+OUT_OF_SCOPE_TEXT = ("Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la "
+                     "Ley 19.886 y su reglamento (Decreto 661).")
 
 
 @dataclass
@@ -36,7 +38,8 @@ class Answer:
     """What the API returns. `rows` are already masked."""
 
     route: str
-    status: str            # ok | declined | failed | refused | no_evidence | not_implemented | needs_clarification
+    status: str            # ok | declined | failed | refused | out_of_scope | no_evidence | not_implemented
+                           # | needs_clarification
     answer: str
     sql: str | None = None
     columns: list[str] = field(default_factory=list)
@@ -92,6 +95,8 @@ class Text2SQLPipeline:
         route = route_question(question, self.llm, self._shared_prefix("router"))
         if route == "refuse":
             return Answer(route, "refused", "No puedo ayudar con esa solicitud.")
+        if route == "out_of_scope":     # harmless but outside the domain: fixed message, no tool, no further model call
+            return Answer(route, "out_of_scope", OUT_OF_SCOPE_TEXT)
         if route == "docs":
             return self._answer_docs(question)
         if route == "unknown":
