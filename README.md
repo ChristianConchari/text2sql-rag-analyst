@@ -42,6 +42,18 @@ verifier on the docs route) with an outcome (`ok | objection | error | skipped`)
 written by the app (counts, violation codes, fixed phrases): it never contains row values, database error text or
 model output (`src/runtime/trace.py`). `GET /api/health` returns `{"status": "ok"}`.
 
+### Web UI
+
+```bash
+cd frontend && nvm use && npm ci && npm run build && cd ..   # Node 24.22.3 (frontend/.nvmrc)
+uv run uvicorn app.main:app                                  # then open http://127.0.0.1:8000
+```
+
+FastAPI serves the build at `/` when `frontend/dist/frontend/browser` exists; the API stays under `/api` on the
+same origin (no CORS). For development, run the API and `cd frontend && npm start` (http://localhost:4200, `/api`
+proxied to port 8000). The frontend types come from `docs/openapi.json` (`uv run python scripts/export_openapi.py`,
+or `npm run gen:api` in `frontend/`); a pytest fails if that file is out of date. See `frontend/README.md`.
+
 A database loaded before `es_persona_natural` existed is upgraded in place by running `load_data.py` once more
 (or by `ensure_derived_columns`). Without that column the output guardrail masks every `NombreProveedor`.
 
@@ -91,6 +103,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `src/agents/orchestration/` | router, generator⇄verifier loop (up to 3 retries), composer |
 | `src/runtime/pipelines/text2sql.py`, `src/interfaces/fastapi_app/`, `app/main.py` | pipeline and API (`POST /api/ask`, `GET /api/health`) |
 | `src/runtime/trace.py` | per-request agent trace and the helpers that keep personal data out of it |
+| `frontend/`, `docs/ui-design/`, `docs/openapi.json` | Angular web UI, its design reference, and the API schema its types are generated from |
 | `src/toolkits/db/executor.py` | read-only DuckDB execution with external access disabled |
 | `src/rag/prompts/sql_prompt.py` | router / generator / composer prompts and the schema context built from the glossary |
 | `src/runtime/providers/llm_client.py` | LLM client behind `configs/model/llm.yaml` + deterministic `FakeLLM` |
