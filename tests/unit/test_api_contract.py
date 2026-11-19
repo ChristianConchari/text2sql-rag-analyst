@@ -74,6 +74,8 @@ def test_openapi_exposes_the_typed_contract(db):
     assert ask_resp["properties"]["status"]["enum"] == list(get_args(Status))
     assert schemas["TraceStep"]["properties"]["outcome"]["enum"] == list(get_args(Outcome)) == [
         "ok", "objection", "error", "skipped"]
+    assert set(ask_resp["required"]) == set(ask_resp["properties"])          # all always sent
+    assert set(schemas["TraceStep"]["required"]) == set(schemas["TraceStep"]["properties"])
     assert set(schemas["Citation"]["properties"]) == {"label", "norma", "articulo", "excerpt"}
 
 

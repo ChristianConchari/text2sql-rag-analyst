@@ -6,12 +6,19 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Route = Literal["sql", "docs", "out_of_scope", "refuse", "unknown"]
 Status = Literal["ok", "declined", "failed", "refused", "out_of_scope", "no_evidence", "not_implemented",
                  "needs_clarification"]
 Outcome = Literal["ok", "objection", "error", "skipped"]
+
+
+class _Response(BaseModel):
+    """Response models: fields with a default are always sent, so the schema marks them required (the generated
+    frontend types then do not make them optional)."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 class AskRequest(BaseModel):
@@ -20,7 +27,7 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
 
 
-class Citation(BaseModel):
+class Citation(_Response):
     """A retrieved article cited by a docs answer (built from the corpus, never from model output)."""
 
     label: str = Field(description='Citation as shown in the answer, e.g. "Ley 19.886 art. 7"')
@@ -29,7 +36,7 @@ class Citation(BaseModel):
     excerpt: str = Field(description="Start of the article text (at most 300 characters)")
 
 
-class TraceStep(BaseModel):
+class TraceStep(_Response):
     """One agent step. `detail` is short Spanish text written by the app: counts, codes and fixed phrases only,
     never row values, database error text or model output."""
 
@@ -40,7 +47,7 @@ class TraceStep(BaseModel):
     attempt: int | None = None
 
 
-class AskResponse(BaseModel):
+class AskResponse(_Response):
     request_id: UUID
     route: Route
     status: Status
@@ -56,5 +63,5 @@ class AskResponse(BaseModel):
     model: str
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(_Response):
     status: Literal["ok"]
