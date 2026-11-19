@@ -1,0 +1,17 @@
+<article class="pending" aria-label="Respuesta en curso" aria-busy="true">
+  <span class="avatar live" aria-hidden="true">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+  </span>
+  <div class="body">
+    <div class="head">
+      <span class="sheen" role="status">Los agentes están trabajando…</span>
+      <span class="elapsed" aria-hidden="true">{{ elapsed() }}</span>
+    </div>
+    <mat-progress-bar mode="indeterminate" aria-label="Respuesta en curso" />
+    <div class="flow">
+      <p><span class="lbl sql">Datos</span>Enrutador → Generador SQL ⇄ Verificador SQL → Ejecutor → Guardia de salida → Redactor</p>
+      <p><span class="lbl docs">Ley</span>Enrutador → Recuperador → Redactor ⇄ Verificador de citas</p>
+    </div>
+    <span class="note">Los pasos reales aparecen cuando llega la respuesta.</span>
+  </div>
+</article>

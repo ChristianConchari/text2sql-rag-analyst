@@ -1,0 +1,21 @@
+<section class="panel">
+  <button type="button" class="toggle" [attr.aria-expanded]="open()" [attr.aria-controls]="listId" (click)="open.set(!open())">
+    <svg class="chevron" [class.open]="open()" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span class="title">Cómo lo resolvieron los agentes</span>
+    <span class="summary">{{ summary() }}</span>
+  </button>
+  <ol [id]="listId" [hidden]="!open()">
+    @for (step of steps(); track $index) {
+      <li>
+        <span class="dot" [style.background]="dot(step)" aria-hidden="true"></span>
+        <div class="text">
+          <span class="agent">{{ step.agent }}<span class="visually-hidden">, {{ outcomeLabel(step) }}</span></span>
+          <span class="detail">{{ step.detail }}</span>
+        </div>
+        <span class="time">{{ seconds(step.duration_ms) }}</span>
+      </li>
+    }
+  </ol>
+</section>

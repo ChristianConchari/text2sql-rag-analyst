@@ -1,59 +1,26 @@
 # Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.3.0.
-
-## Development server
-
-To start a local development server, run:
+Angular 22 (standalone components, signals, zoneless), Angular Material (M3 theme mapped to the design tokens),
+Vitest. The design reference is `../docs/ui-design/`.
 
 ```bash
-ng serve
+nvm use                      # Node 24.22.3 (.nvmrc); Angular 22 needs >= 24.15
+npm ci
+npm start                    # http://localhost:4200, /api proxied to http://127.0.0.1:8000 (proxy.conf.json)
+npm test                     # Vitest, single run
+npm run build                # dist/frontend/browser, served by FastAPI at "/" (see ../app/main.py)
+npm run gen:api              # regenerate src/app/api/schema.d.ts from the API (writes ../docs/openapi.json first)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Layout:
 
-## Code scaffolding
+| Path | What |
+|---|---|
+| `src/app/api/` | `schema.d.ts` generated from `docs/openapi.json` (never edit by hand) and the aliases in `types.ts` |
+| `src/app/core/ask-facade.ts` | the only state: status (`idle \| loading \| done \| error`) and the in-memory conversation |
+| `src/app/core/theme.ts` | light/dark: follows the system, the header toggle overrides it (localStorage `theme`) |
+| `src/app/core/format.ts`, `citations.ts` | es-CL numbers, durations ("0,4 s"), route labels; citation chips |
+| `src/app/ui/` | start screen, composer, pending (loading), answer, trace panel |
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+No streaming yet: while a request runs the UI shows elapsed time and generic progress; the trace appears with the
+answer. The conversation is not persisted.

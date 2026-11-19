@@ -1,0 +1,22 @@
+.panel { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.toggle {
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border: 0; border-radius: 14px; background: transparent; color: var(--ink2); font: inherit; font-size: 14px;
+  cursor: pointer; text-align: left;
+}
+.chevron { flex: none; transition: transform .15s; &.open { transform: rotate(90deg); } }
+.title { font-weight: 500; color: var(--ink); }
+.summary { margin-left: auto; font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+ol {
+  list-style: none; margin: 0 14px 14px 22px; padding: 4px 0 0 20px; border-left: 2px solid var(--line-soft);
+  display: flex; flex-direction: column; gap: 12px;
+}
+li { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.dot {
+  position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.text { display: flex; flex-direction: column; min-width: 0; }
+.agent { font-weight: 500; font-size: 14px; }
+.detail { font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.time { font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
