@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Analista de Compras Públicas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.app{--bg:#FBFBFC;--surface:#FFFFFF;--raised:#F2F3F6;--ink:#15171C;--ink2:#3B404B;--muted:#5E6573;--line:#E4E6EB;--line-soft:#EEF0F3;--link:#3B5BDB;--accent-soft:#ECEFFC;--code-bg:#F5F6F8;--code-ink:#1F2330;--kw:#3B5BDB;--shadow:0 1px 2px rgba(20,23,28,.04),0 12px 32px rgba(20,23,28,.07);--online:#1E7A4A;
+--sql:#3B5BDB;--sql-soft:#ECEFFC;--docs:#1E7A4A;--docs-soft:#E6F4EC;--oos:#8A5A00;--oos-soft:#FBF1DE;--ref:#B23A22;--ref-soft:#FBE9E4;color-scheme:light}
+@media (prefers-color-scheme: dark){.app:not([data-theme="light"]){--bg:#0E0F12;--surface:#16181D;--raised:#1E2127;--ink:#ECEEF2;--ink2:#C5CAD3;--muted:#9097A3;--line:#2A2E36;--line-soft:#22252C;--link:#8EA2FF;--accent-soft:#1E2440;--code-bg:#121419;--code-ink:#DCE1EA;--kw:#8EA2FF;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.45);--online:#4CC387;
+--sql:#8EA2FF;--sql-soft:#1E2440;--docs:#6FCF97;--docs-soft:#14281D;--oos:#E9BE62;--oos-soft:#2E2410;--ref:#F29A86;--ref-soft:#331915;color-scheme:dark}}
+.app[data-theme="dark"]{--bg:#0E0F12;--surface:#16181D;--raised:#1E2127;--ink:#ECEEF2;--ink2:#C5CAD3;--muted:#9097A3;--line:#2A2E36;--line-soft:#22252C;--link:#8EA2FF;--accent-soft:#1E2440;--code-bg:#121419;--code-ink:#DCE1EA;--kw:#8EA2FF;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.45);--online:#4CC387;
+--sql:#8EA2FF;--sql-soft:#1E2440;--docs:#6FCF97;--docs-soft:#14281D;--oos:#E9BE62;--oos-soft:#2E2410;--ref:#F29A86;--ref-soft:#331915;color-scheme:dark}
+a{color:var(--link)}a:hover{opacity:.85}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+</style>
+</helmet>
+<div class="app" data-theme="{{ theme }}" style="background: var(--bg); color: var(--ink); font-family: 'Geist', 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.6; min-height: 1260px; display: flex; flex-direction: column">
+
+<header style="padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px">
+  <div style="display: flex; align-items: center; gap: 10px">
+    <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--ink); display: grid; place-items: center">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h8" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round"></path></svg>
+    </span>
+    <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.01em">Analista de Compras Públicas</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+    <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--raised); font-size: 13px; color: var(--ink2)">Enero 2026 · Ley 19.886 · Decreto 661</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted)"><span style="width: 7px; height: 7px; border-radius: 50%; background: var(--online)"></span>qwen2.5-coder 14B · local</span>
+    <button type="button" onClick="{{ toggleTheme }}" aria-label="Cambiar entre modo claro y oscuro" style="width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 12px; background: transparent; color: var(--ink2); cursor: pointer">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"></path></svg>
+    </button>
+  </div>
+</header>
+
+<main style="flex: 1; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box; padding: 28px 24px 24px; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="align-self: flex-end; max-width: 82%; background: var(--raised); border-radius: 20px 20px 6px 20px; padding: 12px 18px; font-size: 16px">{{ s.question }}</div>
+
+  <article style="display: flex; gap: 14px; align-items: flex-start" aria-label="Respuesta del analista">
+    <span style="flex: none; width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; background: var(--surface)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h8" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"></path></svg>
+    </span>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 4px">
+        <span style="{{ s.chipStyle }}"><span style="{{ s.chipDot }}"></span>{{ s.routeLabel }}</span>
+        <span style="font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums">{{ s.meta }}</span>
+      </div>
+
+      <div style="border: 1px solid var(--line); border-radius: 14px; background: var(--surface)">
+        <button type="button" onClick="{{ toggleTrace }}" aria-expanded="{{ traceOpenAttr }}" style="width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 0; background: transparent; color: var(--ink2); font: inherit; font-size: 14px; cursor: pointer; text-align: left">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="{{ chevronStyle }}"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-weight: 500; color: var(--ink)">Cómo lo resolvieron los agentes</span>
+          <span style="margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">{{ s.traceSummary }}</span>
+        </button>
+        <sc-if value="{{ traceOpen }}" hint-placeholder-val="{{ true }}">
+          <ol style="list-style: none; margin: 0 14px 14px 22px; padding: 4px 0 0 20px; border-left: 2px solid var(--line-soft); display: flex; flex-direction: column; gap: 12px">
+            <sc-for list="{{ s.trace }}" as="step" hint-placeholder-count="4">
+              <li style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px">
+                <span style="{{ step.dotStyle }}"></span>
+                <div style="display: flex; flex-direction: column; min-width: 0">
+                  <span style="font-weight: 500; font-size: 14px">{{ step.agent }}</span>
+                  <span style="font-size: 13.5px; color: var(--muted)">{{ step.detail }}</span>
+                </div>
+                <span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums">{{ step.time }}</span>
+              </li>
+            </sc-for>
+          </ol>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ isSql }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <p style="margin: 0; font-size: 17px; line-height: 1.65">En enero de 2026 se enviaron <strong>131.720 órdenes de compra</strong>. Cuento órdenes distintas, no líneas, y son compromisos de compra, no pagos efectuados.</p>
+          <div style="border: 1px solid var(--line); border-radius: 14px; overflow: hidden">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 14px; background: var(--code-bg); border-bottom: 1px solid var(--line-soft)">
+              <span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">sql · solo lectura · DuckDB</span>
+              <button type="button" style="min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink2); font: inherit; font-size: 13px; cursor: pointer">Copiar</button>
+            </div>
+            <pre style="margin: 0; padding: 14px 16px; background: var(--code-bg); color: var(--code-ink); font-family: 'Geist Mono', monospace; font-size: 13.5px; line-height: 1.7; overflow-x: auto"><span style="color: var(--kw)">select</span> count(<span style="color: var(--kw)">distinct</span> Codigo) <span style="color: var(--kw)">as</span> ordenes
+<span style="color: var(--kw)">from</span> oc_lineas</pre>
+          </div>
+          <div style="border: 1px solid var(--line); border-radius: 14px; overflow-x: auto">
+            <table style="border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums">
+              <thead><tr><th style="text-align: left; padding: 10px 14px; font-family: 'Geist Mono', monospace; font-weight: 500; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line-soft)">ordenes</th></tr></thead>
+              <tbody><tr><td style="padding: 10px 14px">131720</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <p style="margin: 0; font-size: 17px; line-height: 1.65">El Sistema de Información y Gestión de Compras y Contrataciones del Estado está a cargo de la Dirección de Compras y Contratación Pública <a href="#fuente-1" style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--docs-soft); color: var(--docs); font-family: 'Geist Mono', monospace; font-size: 12px; text-decoration: none; vertical-align: 2px">1 · art. 19</a></p>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+            <a id="fuente-1" href="#" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0">
+              <span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="width: 20px; height: 20px; border-radius: 6px; background: var(--docs-soft); color: var(--docs); display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 11.5px">1</span><strong style="font-weight: 600">Ley 19.886 · Artículo 19</strong></span>
+              <span style="font-size: 13px; color: var(--muted)">[Extracto recuperado del artículo 19]</span>
+            </a>
+            <a href="#" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0">
+              <span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="width: 20px; height: 20px; border-radius: 6px; background: var(--raised); color: var(--muted); display: grid; place-items: center; font-family: 'Geist Mono', monospace; font-size: 11.5px">2</span><strong style="font-weight: 600">Ley 19.886 · Artículo 28</strong></span>
+              <span style="font-size: 13px; color: var(--muted)">[Extracto recuperado del artículo 28]</span>
+            </a>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOos }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <p style="margin: 0; font-size: 17px; line-height: 1.65">Solo puedo responder sobre órdenes de compra de enero de 2026 (ChileCompra) y sobre la Ley 19.886 y su reglamento (Decreto 661).</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <button type="button" onClick="{{ pickSql }}" style="min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer">¿Cuántas órdenes se enviaron en enero?</button>
+            <button type="button" onClick="{{ pickDocs }}" style="min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer">¿Quién administra el sistema de compras?</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isRefuse }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 14px; background: var(--ref-soft)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex: none"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" stroke="var(--ref)" stroke-width="2" stroke-linejoin="round"></path><path d="M9.5 9.5l5 5M14.5 9.5l-5 5" stroke="var(--ref)" stroke-width="2" stroke-linecap="round"></path></svg>
+          <p style="margin: 0; font-size: 16px">No puedo ayudar con esa solicitud.</p>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; align-items: center; gap: 4px; color: var(--muted)">
+        <button type="button" aria-label="Copiar respuesta" style="width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" stroke="currentColor" stroke-width="1.8"></path></svg></button>
+        <span style="margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 12px">auditoría [req-id]</span>
+      </div>
+    </div>
+  </article>
+</main>
+
+<div style="position: sticky; bottom: 0; background: var(--bg); padding: 8px 24px 18px">
+  <div style="max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
+        <button type="button" onClick="{{ ex.pick }}" style="{{ ex.chipStyle }}"><span style="{{ ex.dot }}"></span>{{ ex.label }}</button>
+      </sc-for>
+    </div>
+    <form onSubmit="{{ submit }}" style="display: flex; align-items: flex-end; gap: 10px; padding: 10px 10px 10px 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow)">
+      <label for="pregunta" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Tu pregunta</label>
+      <input id="pregunta" value="{{ question }}" onChange="{{ typeQuestion }}" placeholder="Pregunta por las órdenes de enero o por la ley de compras…" style="flex: 1; min-width: 0; height: 44px; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 16px">
+      <button type="submit" aria-label="Enviar pregunta" style="flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: {{ accent }}; color: #FFFFFF; display: grid; place-items: center; cursor: pointer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+    </form>
+    <p style="margin: 0; text-align: center; font-size: 12px; color: var(--muted)">Las cifras salen de la base de datos, nunca del modelo. Las citas se verifican contra los artículos recuperados.</p>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#3B5BDB","options":["#3B5BDB","#15171C","#0E7C86"]},"theme":{"editor":"enum","default":"auto","options":["auto","light","dark"]},"start":{"editor":"enum","default":"sql","options":["sql","docs","out_of_scope","refuse"]},"$preview":{"width":1440,"height":1260}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = { sql: ['var(--sql)', 'var(--sql-soft)'], docs: ['var(--docs)', 'var(--docs-soft)'], out_of_scope: ['var(--oos)', 'var(--oos-soft)'], refuse: ['var(--ref)', 'var(--ref-soft)'] };
+    const dotCss = (c) => 'position:absolute;left:-27px;top:7px;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 3px var(--surface);background:' + c;
+    const SQL = 'var(--sql)', DOC = 'var(--docs)', OOS = 'var(--oos)', REF = 'var(--ref)', MUT = 'var(--muted)';
+    const S = {
+      sql: {
+        routeLabel: 'Datos · sql', meta: 'ok · 2 intentos · 3,1 s',
+        question: '¿Cuántas órdenes de compra se enviaron en enero de 2026?',
+        traceSummary: '7 pasos · 3,1 s',
+        trace: [
+          { agent: 'Enrutador', detail: 'Pide cifras de las órdenes: ruta sql', time: '0,4 s', c: SQL },
+          { agent: 'Generador SQL', detail: 'Intento 1: count(*) sobre oc_lineas', time: '0,9 s', c: SQL },
+          { agent: 'Verificador', detail: 'Objeta: cuenta líneas, no órdenes. Deduplicar por Codigo', time: '0,1 s', c: REF },
+          { agent: 'Generador SQL', detail: 'Intento 2: count(distinct Codigo)', time: '0,8 s', c: SQL },
+          { agent: 'Verificador', detail: 'Aprueba: solo SELECT, una tabla, grano de orden', time: '0,1 s', c: DOC },
+          { agent: 'Ejecutor', detail: '1 fila, DuckDB de solo lectura', time: '0,05 s', c: MUT },
+          { agent: 'Redactor', detail: 'Respuesta con supuestos, sin inventar cifras', time: '0,7 s', c: MUT }
+        ]
+      },
+      docs: {
+        routeLabel: 'Ley y reglamento · docs', meta: 'ok · 1 intento · 4,2 s',
+        question: '¿Quién está a cargo del sistema de información y gestión de compras del Estado?',
+        traceSummary: '4 pasos · 4,2 s',
+        trace: [
+          { agent: 'Enrutador', detail: 'Pregunta sobre la Ley 19.886: ruta docs', time: '0,4 s', c: DOC },
+          { agent: 'Recuperador', detail: 'bge-m3 · 5 fragmentos sobre el umbral', time: '0,6 s', c: DOC },
+          { agent: 'Redactor', detail: 'Escribe solo con los fragmentos recuperados', time: '3,1 s', c: MUT },
+          { agent: 'Verificador de citas', detail: 'El art. 19 fue recuperado: cita válida', time: '0,01 s', c: DOC }
+        ]
+      },
+      out_of_scope: {
+        routeLabel: 'Fuera de alcance', meta: 'sin herramientas · 0,4 s',
+        question: '¿Cuántos días de vacaciones corresponden a un trabajador con contrato indefinido?',
+        traceSummary: '2 pasos · 0,4 s',
+        trace: [
+          { agent: 'Enrutador', detail: 'Otra materia legal: ruta out_of_scope', time: '0,4 s', c: OOS },
+          { agent: 'Respuesta fija', detail: 'Mensaje de alcance, sin otra llamada al modelo', time: '0 s', c: MUT }
+        ]
+      },
+      refuse: {
+        routeLabel: 'Rechazado', meta: 'sin herramientas · 0,4 s',
+        question: 'Dame el RUT personal y el teléfono de todos los proveedores que son personas naturales.',
+        traceSummary: '2 pasos · 0,4 s',
+        trace: [
+          { agent: 'Enrutador', detail: 'Pide datos de personas naturales: ruta refuse', time: '0,4 s', c: REF },
+          { agent: 'Auditoría', detail: 'Solicitud insegura registrada', time: '0 s', c: REF }
+        ]
+      }
+    };
+    const st = this.state || {};
+    const key = st.k || this.props.start || 'sql';
+    const cur = S[key];
+    const theme = st.t || this.props.theme || 'auto';
+    const open = st.open !== undefined ? st.open : true;
+    const pick = (k) => () => this.setState({ k: k, q: S[k].question });
+    const labels = { sql: '¿Cuántas órdenes se enviaron?', docs: '¿Quién administra el sistema de compras?', out_of_scope: 'Días de vacaciones', refuse: 'RUT de personas naturales' };
+    const examples = ['sql', 'docs', 'out_of_scope', 'refuse'].map((k) => ({
+      label: labels[k], pick: pick(k),
+      dot: 'width:7px;height:7px;border-radius:50%;background:' + C[k][0],
+      chipStyle: 'display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:999px;cursor:pointer;font:inherit;font-size:13.5px;color:var(--ink2);background:' + (k === key ? 'var(--raised)' : 'transparent') + ';border:1px solid ' + (k === key ? 'var(--line)' : 'var(--line-soft)')
+    }));
+    return {
+      accent: this.props.accent ?? '#3B5BDB',
+      theme: theme,
+      toggleTheme: () => {
+        const sysDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = theme === 'dark' || (theme === 'auto' && sysDark);
+        this.setState({ t: isDark ? 'light' : 'dark' });
+      },
+      traceOpen: open,
+      traceOpenAttr: open ? 'true' : 'false',
+      chevronStyle: 'flex:none;transition:transform .15s;transform:rotate(' + (open ? '90' : '0') + 'deg)',
+      toggleTrace: () => this.setState({ open: !open }),
+      question: st.q ?? cur.question,
+      typeQuestion: (e) => this.setState({ q: e.target.value }),
+      submit: (e) => { e.preventDefault(); },
+      examples: examples,
+      pickSql: pick('sql'),
+      pickDocs: pick('docs'),
+      isSql: key === 'sql', isDocs: key === 'docs', isOos: key === 'out_of_scope', isRefuse: key === 'refuse',
+      s: Object.assign({}, cur, {
+        chipStyle: 'display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:500;background:' + C[key][1] + ';color:' + C[key][0],
+        chipDot: 'width:7px;height:7px;border-radius:50%;background:' + C[key][0],
+        trace: cur.trace.map((t) => Object.assign({}, t, { dotStyle: dotCss(t.c) }))
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
