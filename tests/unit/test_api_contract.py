@@ -189,3 +189,22 @@ def test_committed_openapi_is_current():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert (ROOT / "docs/openapi.json").read_text(encoding="utf-8") == mod.openapi_json()
+
+
+# ---------- frontend served by the API ----------
+def test_frontend_is_served_at_root_when_built(db, tmp_path):
+    dist = tmp_path / "browser"
+    dist.mkdir()
+    (dist / "index.html").write_text("<app-root></app-root>", encoding="utf-8")
+    ctx = build_schema_context(ROOT / "domains/chilecompra/glossary.yaml", POLICY.blocked_columns)
+    app = create_app(Text2SQLPipeline(FakeLLM(['{"route": "refuse"}']), POLICY, db, build_sql_system(ctx)), static_dir=dist)
+    c = TestClient(app)
+    assert "<app-root>" in c.get("/").text
+    assert c.get("/api/health").json() == {"status": "ok"}          # the API still wins over the static mount
+    assert c.post("/api/ask", json={"question": "x"}).json()["status"] == "refused"
+
+
+def test_no_frontend_mount_without_a_build(db, tmp_path):
+    ctx = build_schema_context(ROOT / "domains/chilecompra/glossary.yaml", POLICY.blocked_columns)
+    app = create_app(Text2SQLPipeline(FakeLLM([]), POLICY, db, build_sql_system(ctx)), static_dir=tmp_path / "missing")
+    assert TestClient(app).get("/").status_code == 404
