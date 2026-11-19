@@ -27,6 +27,7 @@ describe('Answer', () => {
     expect([...el.querySelectorAll('.code-head button')].map(text)).toContain('Copiar');
     const cells = [...el.querySelectorAll('td')];
     expect(text(cells[0])).toBe('131.720');
+    expect(cells[0].classList).toContain('numeric');
     expect(cells[1].classList).toContain('masked');
     expect(el.querySelector('.sources')).toBeNull();
   });
@@ -45,6 +46,17 @@ describe('Answer', () => {
     expect(el.querySelector('ol')!.hidden).toBe(true);
   });
 
+  it('numeric cells are plain table cells, not styled like the source number badge', async () => {
+    const { el } = await render({ ...DOCS_OK, ...SQL_OK, citations: DOCS_OK.citations });
+    const td = el.querySelector<HTMLTableCellElement>('td.numeric')!;
+    const style = getComputedStyle(td);
+    expect(style.display).toBe('table-cell');
+    expect(style.textAlign).toBe('right');
+    expect(style.backgroundColor === '' || style.backgroundColor === 'rgba(0, 0, 0, 0)').toBe(true);
+    expect(td.querySelector('.source-num')).toBeNull();
+    expect(el.querySelector('.source-num')).toBeNull();   // no sources on a sql answer
+  });
+
   it('docs: citation chip linked to its source card, no SQL or table', async () => {
     const { el } = await render(DOCS_OK);
     expect(text(el.querySelector('.chip'))).toBe('Ley y reglamento · docs');
@@ -54,6 +66,7 @@ describe('Answer', () => {
     expect(text(el.querySelector('.answer-text'))).not.toContain('[Ley 19.886 art. 19]');
     const source = el.querySelector('#fuente-1-1')!;
     expect(text(source)).toContain('Ley 19.886 · Artículo 19');
+    expect(text(source.querySelector('.source-num'))).toBe('1');
     expect(text(source)).toContain('Créase un Sistema');
     expect(el.querySelector('pre')).toBeNull();
     expect(el.querySelector('table')).toBeNull();

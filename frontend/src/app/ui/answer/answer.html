@@ -42,7 +42,7 @@
           <ol class="sources" aria-label="Fuentes">
             @for (c of r().citations; track c.label; let i = $index) {
               <li class="source" [id]="anchor(i)" tabindex="-1">
-                <span class="source-title"><span class="num">{{ i + 1 }}</span><strong>{{ sourceTitle(c) }}</strong></span>
+                <span class="source-title"><span class="source-num">{{ i + 1 }}</span><strong>{{ sourceTitle(c) }}</strong></span>
                 <span class="excerpt">{{ c.excerpt }}</span>
               </li>
             }
@@ -68,7 +68,7 @@
                 @for (row of r().rows; track $index) {
                   <tr>
                     @for (v of row; track $index) {
-                      <td [class.num]="isNumber(v)" [class.masked]="v === MASK">{{ cell(v) }}</td>
+                      <td [class.numeric]="isNumber(v)" [class.masked]="v === MASK">{{ cell(v) }}</td>
                     }
                   </tr>
                 } @empty {
