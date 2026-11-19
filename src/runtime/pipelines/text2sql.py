@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,9 +24,17 @@ from src.rag.retrievers.base import Retriever
 from src.rag.retrievers.value_index import ValueIndex, format_hits, load_value_lookup_config
 from src.runtime.features import SQLFeatures, load_features
 from src.runtime.providers.llm_client import ChatModel, LLMClient
+from src.runtime.trace import COMPOSER, FIXED_REPLY, RETRIEVER, ROUTER, Trace
 from src.toolkits.db.executor import run_query
 
 ROOT = Path(__file__).resolve().parents[3]
+ROUTER_DETAILS = {
+    "sql": ("Pregunta por cifras de las órdenes de compra: ruta sql", "ok"),
+    "docs": ("Pregunta sobre la Ley 19.886 o su reglamento: ruta docs", "ok"),
+    "out_of_scope": ("Fuera del dominio de la aplicación: ruta out_of_scope", "ok"),
+    "refuse": ("Solicitud insegura: ruta refuse", "ok"),
+    "unknown": ("No pude clasificar la pregunta", "error"),
+}
 log = logging.getLogger(__name__)
 
 NO_EVIDENCE_TEXT = "No encontré evidencia en la Ley 19.886 ni en su reglamento para responder esa pregunta."
@@ -47,6 +56,7 @@ class Answer:
     warnings: list[str] = field(default_factory=list)
     attempts: int = 0
     citations: list[dict] = field(default_factory=list)   # docs route: label, norma, article, excerpt (all retrieved)
+    trace: list[dict] = field(default_factory=list)       # TraceStep dicts; see src/runtime/trace.py
 
     def to_dict(self) -> dict:
         """Plain dict for JSON serialization."""
@@ -76,7 +86,7 @@ class Text2SQLPipeline:
             return None
         return self.system_prompt
 
-    def generate_sql(self, question: str) -> LoopResult:
+    def generate_sql(self, question: str, trace: Trace | None = None) -> LoopResult:
         """The SQL route without router or composer: value lookup (if on) + generator/verifier loop.
 
         Safety rules and masking always apply; `features.critic` / `features.retries` only control the critic and
@@ -88,35 +98,49 @@ class Text2SQLPipeline:
         retries = min(self.max_retries, f.effective_retries)
         return run_sql_loop(question, self.llm, self.policy, lambda s: run_query(self.db_path, s),
                             self.system_prompt, retries, context=context, critic=f.critic,
-                            max_completion_tokens=f.max_completion_tokens)
+                            max_completion_tokens=f.max_completion_tokens, trace=trace)
 
     def answer(self, question: str) -> Answer:
-        """Answer one question end to end."""
+        """Answer one question end to end. `Answer.trace` lists what each agent did."""
+        trace = Trace()
+        ans = self._answer(question, trace)
+        ans.trace = trace.to_list()
+        return ans
+
+    def _answer(self, question: str, trace: Trace) -> Answer:
+        t0 = time.perf_counter()
         route = route_question(question, self.llm, self._shared_prefix("router"))
+        trace.add(ROUTER, *ROUTER_DETAILS[route], since=t0)
         if route == "refuse":
+            trace.add(FIXED_REPLY, "Rechazo genérico, sin herramientas ni otra llamada al modelo")
             return Answer(route, "refused", "No puedo ayudar con esa solicitud.")
         if route == "out_of_scope":     # harmless but outside the domain: fixed message, no tool, no further model call
+            trace.add(FIXED_REPLY, "Mensaje de alcance, sin herramientas ni otra llamada al modelo")
             return Answer(route, "out_of_scope", OUT_OF_SCOPE_TEXT)
         if route == "docs":
-            return self._answer_docs(question)
+            return self._answer_docs(question, trace)
         if route == "unknown":
+            trace.add(FIXED_REPLY, "Pide reformular la pregunta")
             return Answer(route, "needs_clarification", "No entendí la pregunta; ¿puedes reformularla?")
-        res = self.generate_sql(question)
+        res = self.generate_sql(question, trace)
         if res.status == "declined":
             return Answer(route, "declined", f"Con estos datos no puedo responder: {res.reason or 'sin detalle'}",
                           attempts=len(res.attempts))
         if res.status == "failed":
             return Answer(route, "failed", "No logré generar una consulta válida para tu pregunta.",
                           attempts=len(res.attempts), warnings=[res.reason] if res.reason else [])
+        t0 = time.perf_counter()
         text = compose(question, res.columns, res.rows, self.llm, self._shared_prefix("composer"))
+        trace.add(COMPOSER, "Redacta la respuesta solo con las filas ya enmascaradas", since=t0)
         return Answer(route, "ok", text, res.sql, res.columns, [list(r) for r in res.rows],
                       res.warnings, len(res.attempts))
 
-
-    def _answer_docs(self, question: str) -> Answer:
+    def _answer_docs(self, question: str, trace: Trace | None = None) -> Answer:
         if self.retriever is None:
+            if trace is not None:
+                trace.add(RETRIEVER, "La consulta de documentos no está configurada", "skipped")
             return Answer("docs", "not_implemented", "La consulta de leyes y reglamento no está configurada.")
-        res = run_doc_loop(question, self.llm, self.retriever, self.max_retries)
+        res = run_doc_loop(question, self.llm, self.retriever, self.max_retries, trace=trace)
         if res.status == "no_evidence":
             return Answer("docs", "no_evidence", NO_EVIDENCE_TEXT)
         if res.status == "declined":
