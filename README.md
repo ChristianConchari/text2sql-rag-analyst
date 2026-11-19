@@ -24,11 +24,12 @@ uv run scripts/load_data.py ~/Downloads/2026-1.zip   # also computes the derived
 # LLM: Ollama with the project model (any machine; no cost)
 #   install Ollama from https://ollama.com, then:
 ollama pull qwen2.5-coder:14b                    # ~9 GB, 4-bit; fits a 12 GB GPU
+ollama create qwen2.5-coder:14b-8k -f infra/ollama/Modelfile.qwen2.5-coder-14b-8k   # same weights, num_ctx 8192
+#   The default model (configs/model/llm.yaml) is qwen2.5-coder:14b-8k: the SQL prompt is ~17k characters
+#   (~5-6k tokens) and Ollama's default 4096-token context truncates it silently (the model then answers as if it
+#   had no instructions). LLM_MODEL still overrides the config.
 #   if Ollama runs on another host/tunnel: export LLM_BASE_URL=http://HOST:11434/v1   (or edit configs/model/llm.yaml)
 uv run scripts/smoke_llm.py                      # reachability + model served + one tiny completion
-#   IMPORTANT: the SQL prompt is ~17k characters (~5-6k tokens). Ollama's default context window is small and
-#   truncates silently, so start the server with a larger one: OLLAMA_CONTEXT_LENGTH=8192 ollama serve
-#   (or bake `PARAMETER num_ctx 8192` into a Modelfile). Not yet verified against the real model.
 
 # API
 uv run uvicorn app.main:app --reload             # POST /api/ask {"question": "..."}; DB path via DB_PATH
@@ -128,7 +129,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 
 ## Notes and cautions
 
-- **The local model has only been tried on a few questions** (Ollama + `qwen2.5-coder:14b-8k`, see `infra/ollama/`); use `LLM_MODEL=qwen2.5-coder:14b-8k`. The tests use `FakeLLM`. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
+- **The local model has only been tried on a few questions** (Ollama + `qwen2.5-coder:14b-8k`, the default in `configs/model/llm.yaml`, built from `infra/ollama/`). The tests use `FakeLLM`. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
 - **Personal-data assumption:** a supplier is a natural person when the number of `RutSucursal` is < 50,000,000 (documented, not verifiable in the data). `NombreProveedor` is masked for those, for unparseable RUTs, and whenever the flag is missing from a result.
 - **Personal data:** the quotation files contain contact names and, in a free-text field, e-mails and phone numbers of supplier representatives. Drop or mask them when loading, never copy them into a repo, and keep extracted copies out of `data/` once used.
 - The reference SQL and the gold articles were written by the assistant and are **not validated** by a domain or legal expert.
