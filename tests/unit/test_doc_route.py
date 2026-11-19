@@ -170,8 +170,8 @@ def test_pipeline_docs_route_without_retriever_is_not_implemented(tmp_path):
 def test_api_returns_citations(retriever, tmp_path):
     llm = FakeLLM([ROUTE_DOCS, "Diez días [Norma Ficticia 100 art. 2]."])
     client = TestClient(create_app(pipeline(llm, retriever, tmp_path)))
-    r = client.post("/ask", json={"question": "plazo para reclamar ante el Tribunal de Cuentas Imaginario"}).json()
-    assert r["status"] == "ok" and r["citations"][0]["article"] == "2" and r["citations"][0]["norma"] == "Norma Ficticia 100"
+    r = client.post("/api/ask", json={"question": "plazo para reclamar ante el Tribunal de Cuentas Imaginario"}).json()
+    assert r["status"] == "ok" and r["citations"][0]["articulo"] == "2" and r["citations"][0]["norma"] == "Norma Ficticia 100"
 
 
 def test_make_citation_truncates_long_excerpts():

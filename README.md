@@ -31,8 +31,16 @@ uv run scripts/smoke_llm.py                      # reachability + model served +
 #   (or bake `PARAMETER num_ctx 8192` into a Modelfile). Not yet verified against the real model.
 
 # API
-uv run uvicorn app.main:app --reload             # POST /ask {"question": "..."}; DB path via DB_PATH
+uv run uvicorn app.main:app --reload             # POST /api/ask {"question": "..."}; DB path via DB_PATH
 ```
+
+`POST /api/ask` returns an `AskResponse` (schema at `/openapi.json`, models in
+`src/interfaces/fastapi_app/schemas.py`): `route`, `status`, `answer`, `sql`, masked `columns`/`rows`, `warnings`,
+`attempts`, `citations`, `latency_ms`, `model`, a `request_id` and a `trace`: one step per agent (router, each
+generator attempt, each verifier verdict, executor, output guardrail, composer; or retriever, writer and citation
+verifier on the docs route) with an outcome (`ok | objection | error | skipped`) and a duration. A step's text is
+written by the app (counts, violation codes, fixed phrases): it never contains row values, database error text or
+model output (`src/runtime/trace.py`). `GET /api/health` returns `{"status": "ok"}`.
 
 A database loaded before `es_persona_natural` existed is upgraded in place by running `load_data.py` once more
 (or by `ensure_derived_columns`). Without that column the output guardrail masks every `NombreProveedor`.
@@ -81,7 +89,8 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `src/policies/masking.py` | finds the output columns to mask and appends the `es_persona_natural` flag to the query when safe |
 | `src/policies/output_guardrail.py` | masks `NombreProveedor` unless the row has `es_persona_natural = FALSE` (fail-closed) |
 | `src/agents/orchestration/` | router, generator⇄verifier loop (up to 3 retries), composer |
-| `src/runtime/pipelines/text2sql.py`, `src/interfaces/fastapi_app/`, `app/main.py` | pipeline and API (`POST /ask`, `GET /health`) |
+| `src/runtime/pipelines/text2sql.py`, `src/interfaces/fastapi_app/`, `app/main.py` | pipeline and API (`POST /api/ask`, `GET /api/health`) |
+| `src/runtime/trace.py` | per-request agent trace and the helpers that keep personal data out of it |
 | `src/toolkits/db/executor.py` | read-only DuckDB execution with external access disabled |
 | `src/rag/prompts/sql_prompt.py` | router / generator / composer prompts and the schema context built from the glossary |
 | `src/runtime/providers/llm_client.py` | LLM client behind `configs/model/llm.yaml` + deterministic `FakeLLM` |
