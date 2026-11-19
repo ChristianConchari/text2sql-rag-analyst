@@ -180,3 +180,12 @@ def test_describe_violations_uses_codes_only():
          "weird text: Juan"]
     text = describe_violations(v)
     assert "Juan" not in text and "SQL no válido" in text and "deduplicar por orden" in text
+
+
+def test_committed_openapi_is_current():
+    """docs/openapi.json feeds the frontend types; regenerate with `uv run python scripts/export_openapi.py`."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("export_openapi", ROOT / "scripts/export_openapi.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert (ROOT / "docs/openapi.json").read_text(encoding="utf-8") == mod.openapi_json()
