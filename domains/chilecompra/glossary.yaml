@@ -23,8 +23,8 @@ tabla:
     - Texto libre con acentos y mayúsculas variables: comparar con ILIKE y ambas variantes.
     - Los nulos son frecuentes. NOT IN con columnas nulas devuelve vacío; usar IS NOT DISTINCT FROM o filtrar IS NOT NULL.
     - Un grupo con valor NULL en un ranking (p. ej. sector) no es una categoría real: excluirlo o informarlo aparte.
-    - Las duraciones o demoras entre hitos de la orden (p. ej. entre FechaEnvio y FechaAceptacion) se calculan en días restando directamente las columnas de fecha: (FechaAceptacion - FechaEnvio) devuelve días enteros en DuckDB.
-    - Una misma entidad puede desempeñar más de un rol en el dominio: los nombres de compradores (OrganismoPublico) y proveedores (NombreProveedor) son comparables entre sí.
+    - Las duraciones o intervalos entre dos columnas de fecha en DuckDB se obtienen restándolas directamente (devuelve días enteros).
+    - Una misma entidad puede actuar en distintos roles en la tabla (comprador o proveedor), por lo que sus nombres o códigos entre columnas de rol son comparables.
 
 grupos:
   identificacion_orden: [ID, Codigo, Link, Nombre, Descripcion/Obervaciones]
@@ -205,7 +205,7 @@ columnas:
   # ---------- montos de la orden (se repiten en cada línea) ----------
   MontoTotalOC:
     desc: 'Monto total de la orden en su moneda (TipoMonedaOC), con impuestos. Es el "monto total".'
-    usar: 'Deduplicar por Codigo antes de sumar. Usar MontoTotalOC para montos en moneda original (p. ej. USD, CLF) o MontoTotalOC_PesosChilenos para comparar en CLP.'
+    usar: 'Deduplicar por Codigo antes de sumar. Usar MontoTotalOC para montos en su moneda original (TipoMonedaOC) o MontoTotalOC_PesosChilenos para comparar en CLP.'
     ojo: |
       (1) Se repite en cada línea de la orden: deduplicar por Codigo antes de sumar.
       (2) Es NULO en 48.716 órdenes (37 %); al agregar se excluyen los nulos (conviene informar cuántas órdenes quedan fuera).
@@ -565,7 +565,7 @@ reglas_de_negocio:
   - tema: 'Estados de la orden'
     regla: 'Estado tiene cinco valores: Recepcion Conforme (272.493 líneas), Aceptada (74.426), Enviada a proveedor (2.102), Cancelacion solicitada (320) y En proceso (102). Sin tilde. EstadoProveedor difiere (Aceptada 74.194, Cancelacion solicitada 573).'
   - tema: 'Cuánto se compró'
-    regla: 'El total de una orden en pesos es MontoTotalOC_PesosChilenos (o MontoTotalOC cuando se pide una moneda específica como USD o CLF), contado una vez por Codigo. Si no se especifican estados, incluir todos o los aceptados/recibidos e informarlo como supuesto.'
+    regla: 'El total de una orden en pesos es MontoTotalOC_PesosChilenos (o MontoTotalOC cuando se pide una moneda específica según TipoMonedaOC), contado una vez por Codigo. Si no se especifican estados, incluir todos o los aceptados/recibidos e informarlo como supuesto.'
   - tema: 'Gasto por producto, rubro o proveedor'
     regla: 'SUM(totalLineaNeto) con monedaItem = ''CLP''. No usar los montos de orden.'
   - tema: 'Licitación pública'

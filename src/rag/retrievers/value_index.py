@@ -144,7 +144,7 @@ class ValueIndex:
                 else:
                     for i in ids:
                         generic[i] += 1
-            ranked = sorted(specific, key=lambda i: (-(specific[i] * 10 + generic.get(i, 0)), -round(idf_score[i], 3), -idx.lines[i]))
+            ranked = sorted(specific, key=lambda i: (-(specific[i] * 10 + generic.get(i, 0)), -idx.lines[i], -round(idf_score[i], 3)))
             hits += [ValueHit(column, idx.values[i], idx.lines[i], specific[i] * 10 + generic.get(i, 0))
                      for i in ranked[:cfg.max_per_column]]
         hits.sort(key=lambda h: (-h.score, -h.lines))

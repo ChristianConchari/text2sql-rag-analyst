@@ -32,13 +32,13 @@ Reglas obligatorias:
 - Si seleccionas NombreProveedor, selecciona también es_persona_natural (si agrupas, agrúpala también).
 - Una fila es una LÍNEA de orden: para contar o sumar por orden, deduplica por Codigo (ver reglas de negocio).
 - Los nombres de columna con espacios o barras van entre comillas dobles.
-- Responde SOLO con la consulta dentro de un bloque ```sql. Si existen columnas relevantes pero falta una definición exacta, hay nulos parciales, distinta moneda, métrica derivada (p. ej. concentraciones o porcentajes) o ambigüedad operativa sobre cómo filtrar o agrupar, NO declines: genera la consulta usando el supuesto más razonable con las columnas disponibles.
-- Usa NO_SQL: <motivo breve> ÚNICAMENTE cuando el dato o período pedido no exista en absoluto en la tabla (otro mes/año distinto a enero 2026, pagos efectuados, entregas físicas o tema ajeno a órdenes de compra)."""
+- Responde SOLO con la consulta dentro de un bloque ```sql. Cuando existan las columnas para calcular lo pedido pero haya ambigüedad operativa sobre cómo filtrar, agrupar o tratar nulos parciales, NO declines: genera la consulta usando el supuesto más razonable y refleja el criterio en las columnas o alias devueltos para declararlo en la respuesta. No inventes ni sustituyas una métrica por otra distinta.
+- Usa NO_SQL: <motivo breve> ÚNICAMENTE cuando falten los datos, la métrica o el período pedido en el esquema (p. ej. un período fuera del rango de la tabla, hechos que no registra una orden de compra o temas ajenos al dominio), sin aproximarlos con columnas parciales ni inventar una métrica."""
 
 COMPOSER_SYSTEM = """Eres un analista de compras públicas. Redacta en español una respuesta breve y precisa a la pregunta
-usando SOLO las filas entregadas. Indica supuestos y salvedades relevantes (por ejemplo, que son órdenes de enero de
-2026 y compromisos de compra, no pagos; estados incluidos, moneda o presencia de nulos). Si hay valores enmascarados,
-no intentes adivinarlos. No inventes cifras."""
+usando SOLO las filas entregadas. Declara siempre los supuestos y salvedades relevantes (por ejemplo, período de los datos,
+que son compromisos de compra, estados incluidos, moneda o presencia de nulos); si los datos no responden exactamente lo pedido,
+indícalo explícitamente sin presentar otra métrica como respuesta. Si hay valores enmascarados, no intentes adivinarlos. No inventes cifras."""
 
 
 CLIP_CHARS = 320            # per glossary field, to keep the prompt small
@@ -51,10 +51,14 @@ def _clip(text: str, n: int = CLIP_CHARS) -> str:
 
 
 def build_schema_context(glossary_path: str | Path, hidden_columns: set[str] | frozenset[str] = frozenset()) -> str:
-    """Render the glossary (columns with desc/usar/ojo/regla_adoptada, then business rules) as prompt text."""
+    """Render the glossary (table general rules, columns with desc/usar/ojo/cobertura/regla_adoptada, then business rules) as prompt text."""
     g = yaml.safe_load(Path(glossary_path).read_text(encoding="utf-8"))
     hidden = {c.lower() for c in hidden_columns}
-    lines = [f"Tabla {g['tabla']['nombre']}: {g['tabla']['grano']}.", "Columnas:"]
+    lines = [f"Tabla {g['tabla']['nombre']}: {g['tabla']['grano']}."]
+    if g["tabla"].get("reglas_generales"):
+        lines.append("Reglas generales:")
+        lines += [f"- {_clip(r, CLIP_CHARS_RULES)}" for r in g["tabla"]["reglas_generales"]]
+    lines.append("Columnas:")
     for name, spec in g["columnas"].items():
         if name.lower() in hidden:
             continue
