@@ -1,0 +1,139 @@
+# Held-out evaluation questions for NO_SQL decline fixes (Fase 2a).
+# Frozen before any prompt, glossary, or code changes.
+# Covers the same cause families as eval/results/no_sql_diagnosis_20261122.md with distinct questions and SQL.
+
+- id: h01
+  lever: M
+  question: "¿Cuál es el promedio de ítems por orden de compra en cada sector?"
+  kind: answerable
+  difficulty: medium
+  traps: ["cada fila de oc_lineas es un ítem/línea de la orden; primero contar filas por Codigo y luego promediar por sector", "excluir sector NULL"]
+  sql: |
+    with l as (
+      select Codigo, any_value(sector) as sector, count(*) as n_items
+      from oc_lineas group by Codigo
+    )
+    select sector, round(avg(n_items), 2) as promedio_items
+    from l where sector is not null group by sector order by promedio_items desc
+
+- id: h02
+  lever: M
+  question: "¿Cuál es la mediana de días que tarda en aceptarse una orden de compra según su tipo?"
+  kind: answerable
+  difficulty: hard
+  traps: ["diferencia date_diff('day', FechaEnvio, FechaAceptacion)", "dedup por orden", "excluir órdenes sin FechaAceptacion o FechaEnvio", "tipo = DescripcionTipoOC"]
+  sql: |
+    with o as (
+      select Codigo, any_value(DescripcionTipoOC) as tipo,
+             any_value(FechaEnvio) as envio, any_value(FechaAceptacion) as acept
+      from oc_lineas group by Codigo
+    )
+    select tipo, round(median(date_diff('day', envio, acept)), 2) as mediana_dias
+    from o where acept is not null and envio is not null group by tipo order by mediana_dias desc
+
+- id: h03
+  lever: S
+  question: "¿Cuántas órdenes de compra y qué monto total en pesos chilenos recibieron los proveedores que también figuran como organismos públicos compradores?"
+  kind: answerable
+  difficulty: hard
+  traps: ["cruzar NombreProveedor con el conjunto de OrganismoPublico", "dedup por orden", "usar MontoTotalOC_PesosChilenos"]
+  sql: |
+    with o as (
+      select Codigo, any_value(NombreProveedor) as prov,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    ),
+    orgs as (
+      select distinct OrganismoPublico from oc_lineas where OrganismoPublico is not null
+    )
+    select count(*) as ordenes, round(sum(monto)) as monto_clp
+    from o where prov in (select OrganismoPublico from orgs)
+
+- id: h04
+  lever: M
+  question: "Para cada sector, ¿qué porcentaje del monto total comprado concentra su principal proveedor?"
+  kind: answerable
+  difficulty: hard
+  traps: ["dos niveles de agregación (sector x proveedor, luego máximo sobre total por sector)", "dedup por orden", "excluir sector NULL"]
+  sql: |
+    with o as (
+      select Codigo, any_value(sector) as sector, any_value(CodigoProveedor) as prov,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    ),
+    sp as (
+      select sector, prov, sum(monto) as m
+      from o where sector is not null and monto is not null group by sector, prov
+    )
+    select sector, round(100.0 * max(m) / sum(m), 2) as pct_mayor_proveedor
+    from sp group by sector order by pct_mayor_proveedor desc
+
+- id: h05
+  lever: S
+  question: "¿Cuál es el monto total de las órdenes emitidas en Unidades de Fomento (UF), expresado en UF?"
+  kind: answerable
+  difficulty: hard
+  traps: ["TipoMonedaOC = 'CLF' corresponde a UF", "usar MontoTotalOC (no _PesosChilenos)", "dedup por orden"]
+  sql: |
+    with o as (
+      select Codigo, any_value(TipoMonedaOC) as moneda, any_value(MontoTotalOC) as monto
+      from oc_lineas group by Codigo
+    )
+    select round(sum(monto), 2) as total_uf from o where moneda = 'CLF'
+
+- id: h06
+  lever: M
+  question: "¿Cuál es el percentil 90 del monto de las órdenes de compra en pesos chilenos según su tipo?"
+  kind: answerable
+  difficulty: hard
+  traps: ["percentil 90 con quantile_cont(monto, 0.9)", "dedup por orden", "tipo = DescripcionTipoOC"]
+  sql: |
+    with o as (
+      select Codigo, any_value(DescripcionTipoOC) as tipo,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    )
+    select tipo, round(quantile_cont(monto, 0.9)) as p90_clp
+    from o where monto is not null group by tipo order by p90_clp desc
+
+- id: h07
+  lever: M
+  question: "¿Cuál es la razón de concentración CR4 (porcentaje del monto concentrado en los 4 mayores proveedores) del sector FFAA?"
+  kind: answerable
+  difficulty: hard
+  traps: ["CR4 = suma de participación (%) de los 4 mayores proveedores", "dedup por orden", "agrupar por proveedor en sector = 'FFAA'"]
+  sql: |
+    with o as (
+      select Codigo, any_value(CodigoProveedor) as prov, any_value(sector) as sector,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    ),
+    p as (
+      select prov, sum(monto) as m
+      from o where sector = 'FFAA' and monto is not null group by prov
+    ),
+    ranked as (
+      select m, row_number() over (order by m desc) as rk from p
+    )
+    select round(100.0 * sum(case when rk <= 4 then m else 0 end) / sum(m), 2) as cr4_pct
+    from ranked
+
+- id: h08
+  lever: S
+  question: "¿Cuál fue el monto total ordenado en pesos chilenos durante el último mes disponible, por sector?"
+  kind: answerable
+  difficulty: medium
+  traps: ["supuesto razonable necesario: definir 'último mes disponible' a partir de max(FechaEnvio)", "dedup por orden", "excluir sector NULL"]
+  sql: |
+    with ultima_fecha as (
+      select date_trunc('month', max(FechaEnvio)) as mes from oc_lineas
+    ),
+    o as (
+      select Codigo, any_value(sector) as sector, any_value(FechaEnvio) as envio,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    )
+    select sector, round(sum(monto)) as monto_clp
+    from o, ultima_fecha
+    where date_trunc('month', envio) = mes and sector is not null
+    group by sector order by monto_clp desc
