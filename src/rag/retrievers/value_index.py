@@ -10,6 +10,7 @@ only where the row flag says it is NOT a natural person, so the model never sees
 """
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from collections import defaultdict
@@ -127,15 +128,23 @@ class ValueIndex:
                   if len(t) >= cfg.min_word_len and t not in STOPWORDS]
         hits: list[ValueHit] = []
         for column, idx in self._columns.items():
-            limit = min(cfg.max_values_per_word, max(2, int(cfg.max_share_per_word * len(idx.values))))
+            n_vals = len(idx.values)
+            limit = min(cfg.max_values_per_word, max(2, int(cfg.max_share_per_word * n_vals)))
             specific: dict[int, int] = defaultdict(int)
+            idf_score: dict[int, float] = defaultdict(float)
             generic: dict[int, int] = defaultdict(int)
+            denom = math.log(n_vals + 1) or 1.0
             for token in tokens:
                 ids = self._match(idx, token)
-                target = specific if 0 < len(ids) <= limit else generic
-                for i in ids:
-                    target[i] += 1
-            ranked = sorted(specific, key=lambda i: (-(specific[i] * 10 + generic.get(i, 0)), -idx.lines[i]))
+                if 0 < len(ids) <= limit:
+                    norm_idf = math.log((n_vals + 1) / (len(ids) + 1)) / denom
+                    for i in ids:
+                        specific[i] += 1
+                        idf_score[i] += 0.5 + 0.5 * norm_idf
+                else:
+                    for i in ids:
+                        generic[i] += 1
+            ranked = sorted(specific, key=lambda i: (-(specific[i] * 10 + generic.get(i, 0)), -round(idf_score[i], 3), -idx.lines[i]))
             hits += [ValueHit(column, idx.values[i], idx.lines[i], specific[i] * 10 + generic.get(i, 0))
                      for i in ranked[:cfg.max_per_column]]
         hits.sort(key=lambda h: (-h.score, -h.lines))
