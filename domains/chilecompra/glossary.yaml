@@ -12,7 +12,7 @@
 
 tabla:
   nombre: oc_lineas
-  grano: línea de orden de compra (producto dentro de una orden)
+  grano: línea o ítem de orden de compra (producto dentro de una orden). Cada fila representa un ítem o línea dentro de la orden, no la cantidad física de unidades (cantidad); para contar ítems de una orden se cuentan filas por Codigo.
   clave_orden: Codigo        # identifica la orden; ID es su equivalente numérico
   clave_linea: IDItem
   reglas_generales:
@@ -23,6 +23,8 @@ tabla:
     - Texto libre con acentos y mayúsculas variables: comparar con ILIKE y ambas variantes.
     - Los nulos son frecuentes. NOT IN con columnas nulas devuelve vacío; usar IS NOT DISTINCT FROM o filtrar IS NOT NULL.
     - Un grupo con valor NULL en un ranking (p. ej. sector) no es una categoría real: excluirlo o informarlo aparte.
+    - Las duraciones o demoras entre hitos de la orden (p. ej. entre FechaEnvio y FechaAceptacion) se calculan en días restando directamente las columnas de fecha: (FechaAceptacion - FechaEnvio) devuelve días enteros en DuckDB.
+    - Una misma entidad puede desempeñar más de un rol en el dominio: los nombres de compradores (OrganismoPublico) y proveedores (NombreProveedor) son comparables entre sí.
 
 grupos:
   identificacion_orden: [ID, Codigo, Link, Nombre, Descripcion/Obervaciones]
@@ -188,6 +190,7 @@ columnas:
     por_validar: 'rango verificado; que sea metadato de la extracción es inferido'
   FechaAceptacion:
     desc: 'Fecha en que el proveedor aceptó la orden (99,4 % llena).'
+    usar: 'Para calcular demora o días de aceptación, restar FechaEnvio (o FechaCreacion) a FechaAceptacion.'
     estado: parcial
     consulta: 'SELECT round(100.0*count(FechaAceptacion)/count(*),1) FROM oc_lineas'
     resultado: '99.4'
@@ -202,11 +205,10 @@ columnas:
   # ---------- montos de la orden (se repiten en cada línea) ----------
   MontoTotalOC:
     desc: 'Monto total de la orden en su moneda (TipoMonedaOC), con impuestos. Es el "monto total".'
-    usar: 'Deduplicar por orden antes de sumar. Para comparar entre monedas usar MontoTotalOC_PesosChilenos.'
+    usar: 'Deduplicar por Codigo antes de sumar. Usar MontoTotalOC para montos en moneda original (p. ej. USD, CLF) o MontoTotalOC_PesosChilenos para comparar en CLP.'
     ojo: |
-      (1) Se repite en cada línea de la orden: sumarlo directo sobreestima ~2,2 veces.
-      (2) Es NULO en 48.716 órdenes (37 %); una suma ignora esas órdenes sin avisar.
-      Informar siempre cuántas órdenes quedan fuera.
+      (1) Se repite en cada línea de la orden: deduplicar por Codigo antes de sumar.
+      (2) Es NULO en 48.716 órdenes (37 %); al agregar se excluyen los nulos (conviene informar cuántas órdenes quedan fuera).
     estado: verificada
     consulta: 'WITH o AS (SELECT any_value(MontoTotalOC) m, any_value(TotalNetoOC) n, any_value(Impuestos) i, any_value(Descuentos) d, any_value(Cargos) c FROM oc_lineas GROUP BY Codigo) SELECT count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL) completas, count(*) FILTER (WHERE m IS NOT NULL AND n IS NOT NULL AND i IS NOT NULL AND d IS NOT NULL AND c IS NOT NULL AND abs(m-(n+i-d+c))<=1) cumplen FROM o'
     resultado: '82604, 82604'
@@ -427,13 +429,13 @@ columnas:
 
   # ---------- línea de producto ----------
   IDItem:
-    desc: 'Identificador de la línea (único; 349.443 valores).'
-    usar: 'Clave de la tabla; COUNT(*) cuenta líneas.'
+    desc: 'Identificador único de la línea o ítem dentro de la tabla (349.443 valores).'
+    usar: 'Clave de la tabla; COUNT(*) cuenta líneas o ítems (para ítems de una orden, agrupar por Codigo).'
     estado: verificada
     consulta: 'SELECT count(*), count(DISTINCT IDItem) FROM oc_lineas'
     resultado: '349443, 349443'
   tieneItems:
-    desc: 'Siempre ''1''. Sin información.'
+    desc: 'Bandera constante igual a ''1''. No indica cuántos ítems tiene la orden (para eso contar filas por Codigo).'
     estado: verificada
     consulta: 'SELECT DISTINCT tieneItems FROM oc_lineas'
     resultado: '1'
@@ -563,7 +565,7 @@ reglas_de_negocio:
   - tema: 'Estados de la orden'
     regla: 'Estado tiene cinco valores: Recepcion Conforme (272.493 líneas), Aceptada (74.426), Enviada a proveedor (2.102), Cancelacion solicitada (320) y En proceso (102). Sin tilde. EstadoProveedor difiere (Aceptada 74.194, Cancelacion solicitada 573).'
   - tema: 'Cuánto se compró'
-    regla: 'El total de una orden es MontoTotalOC_PesosChilenos, contado una vez por orden. Hay que decir qué estados se incluyen (todos, o solo ''Aceptada'' y ''Recepcion Conforme'') y cuántas órdenes no tienen monto (48.716).'
+    regla: 'El total de una orden en pesos es MontoTotalOC_PesosChilenos (o MontoTotalOC cuando se pide una moneda específica como USD o CLF), contado una vez por Codigo. Si no se especifican estados, incluir todos o los aceptados/recibidos e informarlo como supuesto.'
   - tema: 'Gasto por producto, rubro o proveedor'
     regla: 'SUM(totalLineaNeto) con monedaItem = ''CLP''. No usar los montos de orden.'
   - tema: 'Licitación pública'
@@ -585,4 +587,4 @@ reglas_de_negocio:
   - tema: 'Compra ágil'
     regla: 'Hasta 100 UTM con al menos tres cotizaciones (Ley 19.886 art. 7 n.º 1; Decreto 661 art. 97). No son 30 UTM.'
   - tema: 'Los montos son compromisos'
-    regla: 'Son órdenes de compra, no pagos efectuados; no responder "cuánto se pagó".'
+    regla: 'Las órdenes representan compromisos de compra, no pagos efectuados; preguntas sobre pagos efectivos no son respondibles con estos datos.'
