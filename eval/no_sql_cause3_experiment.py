@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Cause 3 experiment (length vs content) for the 10 NO_SQL declines + 3 unanswerable leakage controls.
 
-Conditions (both at temperature=0, value_lookup=False, critic=False, max_retries=0, qwen2.5-coder:14b-8k):
+Conditions (at temperature=0, value_lookup=False, critic=False, max_retries=0, qwen2.5-coder:14b-8k):
   - A_length: V0 plain schema prompt + neutral padding to ~6,600 prompt tokens (isolates length).
-  - B_pruned_glossary: V1 rules + pruned glossary to ~2,000 prompt tokens keeping business rules (isolates content).
+  - B_pruned_glossary: RETIRED. Pruning to ~2,000 tokens cannot be done without truncating or omitting
+    schema types, column glossary entries, or business rules (prior truncation caused a temporal
+    decline artifact). Content/rules isolation therefore remains "no aislada".
 
 Runs one evaluation at a time (shared local GPU) and writes raw JSONL to eval/results/no_sql_cause3_20261122.jsonl.
 """
@@ -25,8 +27,6 @@ from src.agents.orchestration.sql_loop import run_sql_loop  # noqa: E402
 from src.eval.scoring import score_rows  # noqa: E402
 from src.policies.sql_verifier import load_policy  # noqa: E402
 from src.rag.prompts.sql_prompt import (  # noqa: E402
-    SQL_RULES,
-    _clip,
     build_plain_schema_context,
     build_sql_system,
 )
@@ -79,22 +79,6 @@ def build_condition_a_prompt(db_path: Path, hidden_columns: frozenset[str], targ
         total += len(line)
         i += 1
     return "".join(pad_lines)
-
-
-def build_condition_b_prompt(glossary_path: Path, hidden_columns: frozenset[str]) -> str:
-    """V1 pruned glossary (~2,000 tokens) keeping SQL_RULES and business rules."""
-    g = yaml.safe_load(glossary_path.read_text(encoding="utf-8"))
-    hidden = {c.lower() for c in hidden_columns}
-    lines = [f"Tabla {g['tabla']['nombre']}: {g['tabla']['grano']}.", "Columnas:"]
-    for name, spec in g["columnas"].items():
-        if name.lower() in hidden:
-            continue
-        quoted = f'"{name}"' if not name.isidentifier() else name
-        desc = _clip(spec.get("desc", ""), 30)
-        lines.append(f"- {quoted}: {desc}")
-    lines.append("Reglas de negocio:")
-    lines += [f"- {r['tema']}: {_clip(r['regla'], 120)}" for r in g.get("reglas_de_negocio", [])]
-    return SQL_RULES + "\n\n" + "\n".join(lines)
 
 
 def run_condition(name: str, system_prompt: str, questions: list[dict], llm: LLMClient, db_path: Path,
@@ -166,28 +150,25 @@ def main() -> None:
     policy = load_policy(ROOT / "configs/domain/chilecompra.yaml")
     questions = load_target_questions()
     prompt_a = build_condition_a_prompt(db_path, policy.blocked_columns)
-    prompt_b = build_condition_b_prompt(ROOT / "domains/chilecompra/glossary.yaml", policy.blocked_columns)
 
     print(f"Prompt A chars: {len(prompt_a)}")
-    print(f"Prompt B chars: {len(prompt_b)}")
+    print("Condition B: retired (cannot prune to ~2,000 tokens without altering schema/glossary/rules; cause no aislada)")
 
     llm = LLMClient(LLMConfig(provider="local", base_url=args.base_url, model=MODEL, temperature=0.0, timeout_s=120.0))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as fh:
         rows_a = run_condition("A_length", prompt_a, questions, llm, db_path, policy, fh)
-        rows_b = run_condition("B_pruned_glossary", prompt_b, questions, llm, db_path, policy, fh)
 
-    for label, rs in (("A_length", rows_a), ("B_pruned_glossary", rows_b)):
-        ans = [r for r in rs if r["kind"] == "answerable"]
-        unans = [r for r in rs if r["kind"] == "unanswerable"]
-        print(
-            f"\nSummary {label}: "
-            f"answerable ok={sum(r['status']=='ok' for r in ans)}/{len(ans)}, "
-            f"declined={sum(r['status']=='declined' for r in ans)}/{len(ans)}, "
-            f"strict={sum(r['strict'] for r in ans)}/{len(ans)} | "
-            f"unanswerable declined={sum(r['status']=='declined' for r in unans)}/{len(unans)}, "
-            f"leaked(ok)={sum(r['status']=='ok' for r in unans)}/{len(unans)}"
-        )
+    ans = [r for r in rows_a if r["kind"] == "answerable"]
+    unans = [r for r in rows_a if r["kind"] == "unanswerable"]
+    print(
+        f"\nSummary A_length: "
+        f"answerable ok={sum(r['status']=='ok' for r in ans)}/{len(ans)}, "
+        f"declined={sum(r['status']=='declined' for r in ans)}/{len(ans)}, "
+        f"strict={sum(r['strict'] for r in ans)}/{len(ans)} | "
+        f"unanswerable declined={sum(r['status']=='declined' for r in unans)}/{len(unans)}, "
+        f"leaked(ok)={sum(r['status']=='ok' for r in unans)}/{len(unans)}"
+    )
 
 
 if __name__ == "__main__":
