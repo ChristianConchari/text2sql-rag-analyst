@@ -32,12 +32,13 @@ Reglas obligatorias:
 - Si seleccionas NombreProveedor, selecciona también es_persona_natural (si agrupas, agrúpala también).
 - Una fila es una LÍNEA de orden: para contar o sumar por orden, deduplica por Codigo (ver reglas de negocio).
 - Los nombres de columna con espacios o barras van entre comillas dobles.
-- Responde SOLO con la consulta dentro de un bloque ```sql. Si la pregunta no se puede responder con estos datos
-  (otro período, pagos efectuados, información inexistente), responde exactamente: NO_SQL: <motivo breve>."""
+- Responde SOLO con la consulta dentro de un bloque ```sql. Si existen columnas relevantes pero falta una definición exacta, hay nulos parciales, distinta moneda, métrica derivada (p. ej. concentraciones o porcentajes) o ambigüedad operativa sobre cómo filtrar o agrupar, NO declines: genera la consulta usando el supuesto más razonable con las columnas disponibles.
+- Usa NO_SQL: <motivo breve> ÚNICAMENTE cuando el dato o período pedido no exista en absoluto en la tabla (otro mes/año distinto a enero 2026, pagos efectuados, entregas físicas o tema ajeno a órdenes de compra)."""
 
 COMPOSER_SYSTEM = """Eres un analista de compras públicas. Redacta en español una respuesta breve y precisa a la pregunta
-usando SOLO las filas entregadas. Indica supuestos relevantes (por ejemplo, que son órdenes de enero de 2026 y compromisos
-de compra, no pagos). Si hay valores enmascarados, no intentes adivinarlos. No inventes cifras."""
+usando SOLO las filas entregadas. Indica supuestos y salvedades relevantes (por ejemplo, que son órdenes de enero de
+2026 y compromisos de compra, no pagos; estados incluidos, moneda o presencia de nulos). Si hay valores enmascarados,
+no intentes adivinarlos. No inventes cifras."""
 
 
 CLIP_CHARS = 320            # per glossary field, to keep the prompt small
@@ -59,7 +60,7 @@ def build_schema_context(glossary_path: str | Path, hidden_columns: set[str] | f
             continue
         quoted = f'"{name}"' if not name.isidentifier() else name
         parts = [_clip(spec.get("desc", ""))]
-        for k in ("usar", "ojo", "regla_adoptada"):
+        for k in ("usar", "ojo", "cobertura", "regla_adoptada"):
             if spec.get(k):
                 parts.append(f"{k}: {_clip(spec[k])}")
         lines.append(f"- {quoted}: " + " | ".join(parts))
