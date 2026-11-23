@@ -565,7 +565,7 @@ reglas_de_negocio:
   - tema: 'Estados de la orden'
     regla: 'Estado tiene cinco valores: Recepcion Conforme (272.493 líneas), Aceptada (74.426), Enviada a proveedor (2.102), Cancelacion solicitada (320) y En proceso (102). Sin tilde. EstadoProveedor difiere (Aceptada 74.194, Cancelacion solicitada 573).'
   - tema: 'Cuánto se compró'
-    regla: 'El total de una orden en pesos es MontoTotalOC_PesosChilenos (o MontoTotalOC cuando se pide una moneda específica según TipoMonedaOC), contado una vez por Codigo. Si no se especifican estados, incluir todos o los aceptados/recibidos e informarlo como supuesto.'
+    regla: 'El total de una orden en pesos es MontoTotalOC_PesosChilenos (o MontoTotalOC cuando se pide una moneda específica según TipoMonedaOC), contado una vez por Codigo. No usar totalLineaNeto para totales por orden u organismo (es neto sin impuestos). Si no se especifican estados, incluir todos o los aceptados/recibidos e informarlo como supuesto.'
   - tema: 'Gasto por producto, rubro o proveedor'
     regla: 'SUM(totalLineaNeto) con monedaItem = ''CLP''. No usar los montos de orden.'
   - tema: 'Licitación pública'

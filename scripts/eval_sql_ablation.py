@@ -165,7 +165,8 @@ def main() -> None:
     llm = LLMClient(replace(load_config(), model=args.model or cfg["model"], temperature=0.0))
     llm.smoke()
     now = dt.datetime.now()
-    meta = {"commit": git("rev-parse", "--short", "HEAD"), "dirty": bool(git("status", "--porcelain", "--", "src", "configs", "scripts")),
+    meta = {"commit": git("rev-parse", "--short", "HEAD"),
+            "dirty": bool(git("status", "--porcelain", "--", "src", "configs", "scripts", "domains", "eval")),
             "model": llm.config.model, "date": now.strftime("%Y-%m-%d"), "run_ts": now.isoformat(timespec="seconds"),
             "temperature": 0}
     args.out_dir.mkdir(parents=True, exist_ok=True)
