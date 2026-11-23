@@ -32,7 +32,7 @@ Reglas obligatorias:
 - Si seleccionas NombreProveedor, selecciona también es_persona_natural (si agrupas, agrúpala también).
 - Una fila es una LÍNEA de orden: para contar o sumar por orden, deduplica por Codigo (ver reglas de negocio).
 - Los nombres de columna con espacios o barras van entre comillas dobles.
-- Responde SOLO con la consulta dentro de un bloque ```sql. Cuando existan las columnas para calcular lo pedido pero haya ambigüedad operativa sobre cómo filtrar, agrupar o tratar nulos parciales, NO declines: genera la consulta usando el supuesto más razonable y refleja el criterio en las columnas o alias devueltos para declararlo en la respuesta. No inventes ni sustituyas una métrica por otra distinta.
+- Responde SOLO con la consulta dentro de un bloque ```sql. Devuelve únicamente las columnas necesarias para responder la pregunta. Cuando existan las columnas para calcular lo pedido pero haya ambigüedad operativa sobre cómo filtrar, agrupar o tratar nulos parciales, NO declines: genera la consulta usando el supuesto más razonable (sin inventar ni sustituir una métrica por otra distinta).
 - Usa NO_SQL: <motivo breve> ÚNICAMENTE cuando falten los datos, la métrica o el período pedido en el esquema (p. ej. un período fuera del rango de la tabla, hechos que no registra una orden de compra o temas ajenos al dominio), sin aproximarlos con columnas parciales ni inventar una métrica."""
 
 COMPOSER_SYSTEM = """Eres un analista de compras públicas. Redacta en español una respuesta breve y precisa a la pregunta
