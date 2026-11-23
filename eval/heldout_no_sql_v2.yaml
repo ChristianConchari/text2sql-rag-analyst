@@ -1,0 +1,78 @@
+# Held-out evaluation questions v2 for NO_SQL decline fixes.
+# Independent set (h09-h14): 4 answerable with distinct forms from candidate_questions*.yaml and heldout_no_sql.yaml,
+# plus 2 genuinely unanswerable controls.
+
+- id: h09
+  lever: M
+  question: "¿Cuántas órdenes de compra se enviaron en cada día de la semana (lunes a domingo)?"
+  kind: answerable
+  difficulty: medium
+  traps: ["dedup por orden antes de agrupar por día", "usar FechaEnvio y excluir NULL", "extraer día de la semana con dayname(FechaEnvio)"]
+  sql: |
+    with o as (
+      select Codigo, any_value(FechaEnvio) as envio
+      from oc_lineas group by Codigo
+    )
+    select dayname(envio) as dia_semana, count(*) as ordenes
+    from o where envio is not null
+    group by dia_semana order by ordenes desc
+
+- id: h10
+  lever: S
+  question: "¿Cuántas órdenes de compra y qué monto total en pesos chilenos recibieron los proveedores que son personas naturales, comparado con los que no lo son?"
+  kind: answerable
+  difficulty: medium
+  traps: ["usar columna booleana es_persona_natural", "dedup por orden", "excluir es_persona_natural NULL", "usar MontoTotalOC_PesosChilenos"]
+  sql: |
+    with o as (
+      select Codigo, any_value(es_persona_natural) as persona_natural,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    )
+    select persona_natural, count(*) as ordenes, round(sum(monto)) as monto_clp
+    from o where persona_natural is not null
+    group by persona_natural order by ordenes desc
+
+- id: h11
+  lever: S
+  question: "¿Cuántas órdenes de compra y qué monto total en pesos chilenos corresponden a Convenio Marco frente a otras modalidades?"
+  kind: answerable
+  difficulty: medium
+  traps: ["Convenio Marco se identifica por Codigo_ConvenioMarco no nulo y no vacío", "dedup por orden", "usar MontoTotalOC_PesosChilenos"]
+  sql: |
+    with o as (
+      select Codigo, any_value(Codigo_ConvenioMarco) as cm,
+             any_value(MontoTotalOC_PesosChilenos) as monto
+      from oc_lineas group by Codigo
+    )
+    select case when cm is not null and trim(cm) <> '' then 'Convenio Marco' else 'Otra modalidad' end as modalidad,
+           count(*) as ordenes, round(sum(monto)) as monto_clp
+    from o group by 1 order by ordenes desc
+
+- id: h12
+  lever: S
+  question: "¿Cuántas órdenes emitidas en pesos chilenos tienen un descuento aplicado mayor a cero, y cuál es el monto total de esos descuentos?"
+  kind: answerable
+  difficulty: medium
+  traps: ["filtrar TipoMonedaOC = 'CLP' para no mezclar monedas en Descuentos", "Descuentos a nivel de orden (dedup por Codigo)", "filtrar Descuentos > 0"]
+  sql: |
+    with o as (
+      select Codigo, any_value(TipoMonedaOC) as moneda, any_value(Descuentos) as descuentos
+      from oc_lineas group by Codigo
+    )
+    select count(*) as ordenes_con_descuento, round(sum(descuentos)) as total_descuentos_clp
+    from o where moneda = 'CLP' and descuentos > 0
+
+- id: h13
+  lever: S
+  question: "¿Cuál fue el presupuesto anual asignado originalmente a cada organismo público para 2026?"
+  kind: unanswerable
+  difficulty: medium
+  expected: "No se puede responder con estos datos: la tabla contiene órdenes de compra emitidas en enero de 2026, no el presupuesto asignado a los organismos."
+
+- id: h14
+  lever: S
+  question: "¿Cuántas ofertas o postulaciones recibieron las licitaciones públicas antes de adjudicarse?"
+  kind: unanswerable
+  difficulty: hard
+  expected: "No se puede responder con estos datos: la tabla registra órdenes de compra emitidas (con CodigoLicitacion), no las ofertas ni postulaciones recibidas en cada licitación."
