@@ -11,6 +11,7 @@ The architecture diagram is in `docs/arquitectura.html`. Scope, evaluation desig
 ```bash
 uv sync                                          # Python >= 3.11; creates .venv
 uv run pytest -q                                 # the whole suite; needs no data and no model (it uses FakeLLM)
+scripts/gate.sh                                  # repo gate (exit 0 = green): the same suite with the frozen lock, on Python 3.12
 UV_TORCH_BACKEND=cpu uv sync --group rag         # optional: torch + sentence-transformers for the real retriever (~2 GB)
 # On a CUDA GPU: `uv sync --group rag` (default backend) and EMBED_DEVICE=cuda to run bge-m3 in fp16 (~1.1 GB, fits next to the 14B model)
 ```
