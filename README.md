@@ -25,15 +25,36 @@ uv run scripts/load_data.py ~/Downloads/2026-1.zip   # also computes the derived
 # LLM: Ollama with the project model (any machine; no cost)
 #   install Ollama from https://ollama.com, then:
 ollama pull qwen2.5-coder:14b                    # ~9 GB, 4-bit; fits a 12 GB GPU
+ollama create qwen2.5-coder:14b-8k -f infra/ollama/Modelfile.qwen2.5-coder-14b-8k   # same weights, num_ctx 8192
+#   The default model (configs/model/llm.yaml) is qwen2.5-coder:14b-8k: the SQL prompt is ~17k characters
+#   (~5-6k tokens) and Ollama's default 4096-token context truncates it silently (the model then answers as if it
+#   had no instructions). LLM_MODEL still overrides the config.
 #   if Ollama runs on another host/tunnel: export LLM_BASE_URL=http://HOST:11434/v1   (or edit configs/model/llm.yaml)
 uv run scripts/smoke_llm.py                      # reachability + model served + one tiny completion
-#   IMPORTANT: the SQL prompt is ~17k characters (~5-6k tokens). Ollama's default context window is small and
-#   truncates silently, so start the server with a larger one: OLLAMA_CONTEXT_LENGTH=8192 ollama serve
-#   (or bake `PARAMETER num_ctx 8192` into a Modelfile). Not yet verified against the real model.
 
 # API
-uv run uvicorn app.main:app --reload             # POST /ask {"question": "..."}; DB path via DB_PATH
+uv run uvicorn app.main:app --reload             # POST /api/ask {"question": "..."}; DB path via DB_PATH
 ```
+
+`POST /api/ask` returns an `AskResponse` (schema at `/openapi.json`, models in
+`src/interfaces/fastapi_app/schemas.py`): `route`, `status`, `answer`, `sql`, masked `columns`/`rows`, `warnings`,
+`attempts`, `citations`, `latency_ms`, `model`, a `request_id` and a `trace`: one step per agent (router, each
+generator attempt, each verifier verdict, executor, output guardrail, composer; or retriever, writer and citation
+verifier on the docs route) with an outcome (`ok | objection | error | skipped`) and a duration. A step's text is
+written by the app (counts, violation codes, fixed phrases): it never contains row values, database error text or
+model output (`src/runtime/trace.py`). `GET /api/health` returns `{"status": "ok"}`.
+
+### Web UI
+
+```bash
+cd frontend && nvm use && npm ci && npm run build && cd ..   # Node 24.22.3 (frontend/.nvmrc)
+uv run uvicorn app.main:app                                  # then open http://127.0.0.1:8000
+```
+
+FastAPI serves the build at `/` when `frontend/dist/frontend/browser` exists; the API stays under `/api` on the
+same origin (no CORS). For development, run the API and `cd frontend && npm start` (http://localhost:4200, `/api`
+proxied to port 8000). The frontend types come from `docs/openapi.json` (`uv run python scripts/export_openapi.py`,
+or `npm run gen:api` in `frontend/`); a pytest fails if that file is out of date. See `frontend/README.md`.
 
 A database loaded before `es_persona_natural` existed is upgraded in place by running `load_data.py` once more
 (or by `ensure_derived_columns`). Without that column the output guardrail masks every `NombreProveedor`.
@@ -82,7 +103,9 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `src/policies/masking.py` | finds the output columns to mask and appends the `es_persona_natural` flag to the query when safe |
 | `src/policies/output_guardrail.py` | masks `NombreProveedor` unless the row has `es_persona_natural = FALSE` (fail-closed) |
 | `src/agents/orchestration/` | router, generator⇄verifier loop (up to 3 retries), composer |
-| `src/runtime/pipelines/text2sql.py`, `src/interfaces/fastapi_app/`, `app/main.py` | pipeline and API (`POST /ask`, `GET /health`) |
+| `src/runtime/pipelines/text2sql.py`, `src/interfaces/fastapi_app/`, `app/main.py` | pipeline and API (`POST /api/ask`, `GET /api/health`) |
+| `src/runtime/trace.py` | per-request agent trace and the helpers that keep personal data out of it |
+| `frontend/`, `docs/ui-design/`, `docs/openapi.json` | Angular web UI, its design reference, and the API schema its types are generated from |
 | `src/toolkits/db/executor.py` | read-only DuckDB execution with external access disabled |
 | `src/rag/prompts/sql_prompt.py` | router / generator / composer prompts and the schema context built from the glossary |
 | `src/runtime/providers/llm_client.py` | LLM client behind `configs/model/llm.yaml` + deterministic `FakeLLM` |
@@ -107,7 +130,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 
 ## Notes and cautions
 
-- **The local model has only been tried on a few questions** (Ollama + `qwen2.5-coder:14b-8k`, see `infra/ollama/`); use `LLM_MODEL=qwen2.5-coder:14b-8k`. The tests use `FakeLLM`. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
+- **The local model has only been tried on a few questions** (Ollama + `qwen2.5-coder:14b-8k`, the default in `configs/model/llm.yaml`, built from `infra/ollama/`). The tests use `FakeLLM`. The SQL baselines were run with Claude subagents as a proxy: one prompt per batch, full schema, no tools. Replace with the real model before the final measurements.
 - **Personal-data assumption:** a supplier is a natural person when the number of `RutSucursal` is < 50,000,000 (documented, not verifiable in the data). `NombreProveedor` is masked for those, for unparseable RUTs, and whenever the flag is missing from a result.
 - **Personal data:** the quotation files contain contact names and, in a free-text field, e-mails and phone numbers of supplier representatives. Drop or mask them when loading, never copy them into a repo, and keep extracted copies out of `data/` once used.
 - The reference SQL and the gold articles were written by the assistant and are **not validated** by a domain or legal expert.

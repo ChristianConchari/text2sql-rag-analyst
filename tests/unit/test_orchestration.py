@@ -172,21 +172,21 @@ def test_pipeline_composer_failure_falls_back_to_table(db):
 def test_api_ask_and_health(db):
     llm = FakeLLM([ROUTE_SQL, sql_block("SELECT COUNT(*) AS n FROM oc_lineas"), "Hay 3 líneas."])
     client = TestClient(create_app(pipeline(llm, db)))
-    assert client.get("/health").json() == {"status": "ok"}
-    r = client.post("/ask", json={"question": "¿cuántas líneas?"})
+    assert client.get("/api/health").json() == {"status": "ok"}
+    r = client.post("/api/ask", json={"question": "¿cuántas líneas?"})
     assert r.status_code == 200 and r.json()["status"] == "ok" and r.json()["rows"] == [[3]]
-    assert client.post("/ask", json={"question": ""}).status_code == 422
+    assert client.post("/api/ask", json={"question": ""}).status_code == 422
 
 
 def test_api_passes_out_of_scope_through(db):
     r = TestClient(create_app(pipeline(FakeLLM(['{"route": "out_of_scope"}']), db))).post(
-        "/ask", json={"question": "Escribe un poema."})
+        "/api/ask", json={"question": "Escribe un poema."})
     assert r.status_code == 200 and r.json()["route"] == r.json()["status"] == "out_of_scope"
 
 
 def test_api_injection_attempt_is_never_executed(db):
     llm = FakeLLM([ROUTE_SQL] + [sql_block("SELECT Codigo FROM oc_lineas; DROP TABLE oc_lineas")] * 4)
-    r = TestClient(create_app(pipeline(llm, db))).post("/ask", json={"question": "x"}).json()
+    r = TestClient(create_app(pipeline(llm, db))).post("/api/ask", json={"question": "x"}).json()
     assert r["status"] == "failed" and r["attempts"] == 4
     assert duckdb.connect(str(db), read_only=True).execute("select count(*) from oc_lineas").fetchone()[0] == 3
 

@@ -1,0 +1,96 @@
+<article class="answer" aria-label="Respuesta del analista">
+  <span class="avatar" aria-hidden="true">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+  </span>
+  <div class="body">
+    <div class="head">
+      <span class="chip" [style.background]="'var(--' + routeVar() + '-soft, var(--raised))'" [style.color]="'var(--' + routeVar() + ')'">
+        <span class="chip-dot" [style.background]="'var(--' + routeVar() + ')'"></span>{{ routeLabel() }}
+      </span>
+      <span class="meta">{{ meta() }}</span>
+    </div>
+
+    <app-trace-panel [steps]="r().trace" [route]="r().route" [latencyMs]="r().latency_ms" />
+
+    @switch (r().route) {
+      @case ('refuse') {
+        <div class="refuse" role="note">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" stroke="var(--ref)" stroke-width="2" stroke-linejoin="round" />
+            <path d="M9.5 9.5l5 5M14.5 9.5l-5 5" stroke="var(--ref)" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <p>{{ r().answer }}</p>
+        </div>
+      }
+      @case ('out_of_scope') {
+        <p class="answer-text">{{ r().answer }}</p>
+        <div class="suggestions">
+          @for (s of suggestions; track s.question) {
+            <button matButton="outlined" type="button" class="suggestion" (click)="suggest.emit(s.question)">{{ s.label }}</button>
+          }
+        </div>
+      }
+      @default {
+        @if (isDocsResult()) {
+          <p class="answer-text">
+            @for (seg of segments(); track $index) {
+              @if (asCite(seg); as c) {
+                <a class="cite" [href]="'#' + anchor(c.cite)" [attr.aria-label]="'Fuente ' + (c.cite + 1) + ', ' + c.label">{{ c.cite + 1 }} · {{ c.label }}</a>
+              } @else {<span>{{ asText(seg) }}</span>}
+            }
+          </p>
+          <ol class="sources" aria-label="Fuentes">
+            @for (c of r().citations; track c.label; let i = $index) {
+              <li class="source" [id]="anchor(i)" tabindex="-1">
+                <span class="source-title"><span class="source-num">{{ i + 1 }}</span><strong>{{ sourceTitle(c) }}</strong></span>
+                <span class="excerpt">{{ c.excerpt }}</span>
+              </li>
+            }
+          </ol>
+        } @else {
+          <p class="answer-text">{{ r().answer }}</p>
+        }
+
+        @if (isSqlResult() && r().sql) {
+          <div class="code">
+            <div class="code-head">
+              <span>sql · solo lectura · DuckDB</span>
+              <button matButton type="button" (click)="copy(r().sql!, 'Consulta')">Copiar</button>
+            </div>
+            <pre><code>{{ r().sql }}</code></pre>
+          </div>
+        }
+        @if (isSqlResult() && r().columns.length) {
+          <div class="table-wrap" role="region" aria-label="Resultado de la consulta" tabindex="0">
+            <table>
+              <thead><tr>@for (col of r().columns; track $index) {<th scope="col">{{ col }}</th>}</tr></thead>
+              <tbody>
+                @for (row of r().rows; track $index) {
+                  <tr>
+                    @for (v of row; track $index) {
+                      <td [class.numeric]="isNumber(v)" [class.masked]="v === MASK">{{ cell(v) }}</td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr><td [attr.colspan]="r().columns.length" class="empty">Sin filas.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        @if (r().warnings.length) {
+          <ul class="warnings" aria-label="Avisos">
+            @for (w of r().warnings; track $index) {<li>{{ w }}</li>}
+          </ul>
+        }
+      }
+    }
+
+    <div class="foot">
+      <button matIconButton type="button" aria-label="Copiar respuesta" (click)="copy(r().answer, 'Respuesta')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8" /><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" stroke="currentColor" stroke-width="1.8" /></svg>
+      </button>
+      <span class="rid" [title]="'Identificador de la solicitud: ' + r().request_id">solicitud {{ shortId() }}</span>
+    </div>
+  </div>
+</article>

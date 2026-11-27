@@ -1,0 +1,85 @@
+@use '@angular/material' as mat;
+
+/* Design tokens (docs/ui-design/). Light by default; dark from the system unless the header toggle forced light,
+   or forced by the toggle. */
+:root {
+  --bg: #FBFBFC; --surface: #FFFFFF; --raised: #F2F3F6; --ink: #15171C; --ink2: #3B404B; --muted: #5E6573;
+  --line: #E4E6EB; --line-soft: #EEF0F3; --accent: #3B5BDB; --accent-soft: #ECEFFC; --on-accent: #FFFFFF;
+  --code-bg: #F5F6F8; --code-ink: #1F2330; --online: #1E7A4A; --offline: #B23A22;
+  --shadow: 0 1px 2px rgba(20, 23, 28, .04), 0 12px 32px rgba(20, 23, 28, .07);
+  --sql: #3B5BDB; --sql-soft: #ECEFFC; --docs: #1E7A4A; --docs-soft: #E6F4EC;
+  --oos: #8A5A00; --oos-soft: #FBF1DE; --ref: #B23A22; --ref-soft: #FBE9E4;
+  --font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: light;
+}
+
+@mixin dark {
+  --bg: #0E0F12; --surface: #16181D; --raised: #1E2127; --ink: #ECEEF2; --ink2: #C5CAD3; --muted: #9097A3;
+  --line: #2A2E36; --line-soft: #22252C; --accent: #8EA2FF; --accent-soft: #1E2440; --on-accent: #0E0F12;
+  --code-bg: #121419; --code-ink: #DCE1EA; --online: #4CC387; --offline: #F29A86;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .45);
+  --sql: #8EA2FF; --sql-soft: #1E2440; --docs: #6FCF97; --docs-soft: #14281D;
+  --oos: #E9BE62; --oos-soft: #2E2410; --ref: #F29A86; --ref-soft: #331915;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { @include dark; }
+}
+:root[data-theme='dark'] { @include dark; }
+
+/* Angular Material M3, with its system tokens pointed at ours so components follow both themes. */
+html {
+  @include mat.theme((
+    color: (primary: mat.$blue-palette, theme-type: color-scheme),
+    typography: (plain-family: var(--font), brand-family: var(--font)),
+    density: 0,
+  ));
+  @include mat.theme-overrides((
+    primary: var(--accent),
+    on-primary: var(--on-accent),
+    primary-container: var(--accent-soft),
+    on-primary-container: var(--ink),
+    surface: var(--surface),
+    on-surface: var(--ink),
+    on-surface-variant: var(--ink2),
+    surface-container: var(--raised),
+    surface-container-high: var(--raised),
+    surface-container-highest: var(--raised),
+    inverse-surface: var(--ink),
+    inverse-on-surface: var(--bg),
+    outline: var(--line),
+    outline-variant: var(--line-soft),
+    error: var(--ref),
+  ));
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+:where(button, input, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; padding: 0; margin: -1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}

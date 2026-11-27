@@ -4,7 +4,7 @@
 # ///
 """Smoke test for the LLM endpoint configured in configs/model/llm.yaml.
 
-Usage: uv run scripts/smoke_llm.py [--base-url http://host:11434/v1] [--model qwen2.5-coder:14b]
+Usage: uv run scripts/smoke_llm.py [--base-url http://host:11434/v1] [--model qwen2.5-coder:14b-8k]
 Overrides also via LLM_BASE_URL / LLM_MODEL. Exit code 0 = reachable, model served, completion returned.
 """
 import argparse

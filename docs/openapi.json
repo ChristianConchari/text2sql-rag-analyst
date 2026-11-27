@@ -1,0 +1,353 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "text2sql-rag-analyst",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ask": {
+      "post": {
+        "summary": "Ask",
+        "operationId": "ask_api_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AskRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "description": "Request body of POST /api/ask."
+      },
+      "AskResponse": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "route": {
+            "type": "string",
+            "enum": [
+              "sql",
+              "docs",
+              "out_of_scope",
+              "refuse",
+              "unknown"
+            ],
+            "title": "Route"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "declined",
+              "failed",
+              "refused",
+              "out_of_scope",
+              "no_evidence",
+              "not_implemented",
+              "needs_clarification"
+            ],
+            "title": "Status"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns",
+            "default": []
+          },
+          "rows": {
+            "items": {
+              "items": {},
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "Already masked by the output guardrail",
+            "default": []
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 0
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations",
+            "default": []
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/TraceStep"
+            },
+            "type": "array",
+            "title": "Trace",
+            "default": []
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "route",
+          "status",
+          "answer",
+          "sql",
+          "columns",
+          "rows",
+          "warnings",
+          "attempts",
+          "citations",
+          "trace",
+          "latency_ms",
+          "model"
+        ],
+        "title": "AskResponse"
+      },
+      "Citation": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Citation as shown in the answer, e.g. \"Ley 19.886 art. 7\""
+          },
+          "norma": {
+            "type": "string",
+            "title": "Norma",
+            "description": "e.g. \"Ley 19886\""
+          },
+          "articulo": {
+            "type": "string",
+            "title": "Articulo",
+            "description": "Article number, e.g. \"8 bis\""
+          },
+          "excerpt": {
+            "type": "string",
+            "title": "Excerpt",
+            "description": "Start of the article text (at most 300 characters)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "norma",
+          "articulo",
+          "excerpt"
+        ],
+        "title": "Citation",
+        "description": "A retrieved article cited by a docs answer (built from the corpus, never from model output)."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "TraceStep": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "objection",
+              "error",
+              "skipped"
+            ],
+            "title": "Outcome"
+          },
+          "duration_ms": {
+            "type": "number",
+            "title": "Duration Ms"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent",
+          "detail",
+          "outcome",
+          "duration_ms",
+          "attempt"
+        ],
+        "title": "TraceStep",
+        "description": "One agent step. `detail` is short Spanish text written by the app: counts, codes and fixed phrases only,\nnever row values, database error text or model output."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+      </span>
+      <span class="name">Analista de Compras Públicas</span>
+    </div>
+    <div class="tools">
+      <span class="scope">Enero 2026 · Ley 19.886 · Decreto 661</span>
+      @if (facade.online() !== null) {
+        <span class="status" role="status">
+          <span class="led" [class.off]="!facade.online()" aria-hidden="true"></span>
+          {{ facade.online() ? (facade.model() ?? 'API en línea') : 'API sin conexión' }}
+        </span>
+      }
+      @if (!facade.empty()) {
+        <button matButton type="button" class="new" (click)="facade.reset()">Nueva conversación</button>
+      }
+      <button type="button" class="icon" aria-label="Cambiar entre modo claro y oscuro" (click)="theme.toggle()">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" /></svg>
+      </button>
+    </div>
+  </header>
+
+  @if (facade.empty()) {
+    <main>
+      <app-start-screen [loading]="facade.loading()" (ask)="ask($event)" />
+    </main>
+  } @else {
+    <main class="conversation" #conversation aria-live="polite">
+      @for (turn of facade.turns(); track turn.id) {
+        <section class="turn" [attr.aria-label]="'Pregunta ' + turn.id">
+          <p class="question">{{ turn.question }}</p>
+          @if (turn.response) {
+            <app-answer [response]="turn.response" [turnId]="turn.id" (suggest)="ask($event)" />
+          } @else if (turn.error) {
+            <div class="error" role="alert" [class.cancelled]="turn.error.kind === 'cancelled'">
+              <p>{{ turn.error.message }}</p>
+              @if (turn.error.kind !== 'invalid') {
+                <button matButton="outlined" type="button" [disabled]="facade.loading()" (click)="facade.retry(turn.id)">Reintentar</button>
+              }
+            </div>
+          } @else {
+            <app-pending [startedAt]="turn.startedAt" />
+          }
+        </section>
+      }
+    </main>
+    <div class="dock">
+      <div class="dock-inner">
+        <app-composer [loading]="facade.loading()" (send)="ask($event)" (stop)="facade.cancel()" />
+        <p class="disclaimer">Las cifras salen de la base de datos, nunca del modelo. Las citas se verifican contra los artículos recuperados.</p>
+      </div>
+    </div>
+  }
+</div>

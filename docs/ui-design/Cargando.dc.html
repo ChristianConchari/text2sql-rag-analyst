@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Respuesta en curso</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.app{--bg:#FBFBFC;--surface:#FFFFFF;--raised:#F2F3F6;--ink:#15171C;--ink2:#3B404B;--muted:#5E6573;--line:#E4E6EB;--line-soft:#EEF0F3;--link:#3B5BDB;--shadow:0 1px 2px rgba(20,23,28,.04),0 12px 32px rgba(20,23,28,.07);--online:#1E7A4A;--sql:#3B5BDB;--sql-soft:#ECEFFC;--ref:#B23A22;color-scheme:light}
+@media (prefers-color-scheme: dark){.app:not([data-theme="light"]){--bg:#0E0F12;--surface:#16181D;--raised:#1E2127;--ink:#ECEEF2;--ink2:#C5CAD3;--muted:#9097A3;--line:#2A2E36;--line-soft:#22252C;--link:#8EA2FF;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.45);--online:#4CC387;--sql:#8EA2FF;--sql-soft:#1E2440;--ref:#F29A86;color-scheme:dark}}
+.app[data-theme="dark"]{--bg:#0E0F12;--surface:#16181D;--raised:#1E2127;--ink:#ECEEF2;--ink2:#C5CAD3;--muted:#9097A3;--line:#2A2E36;--line-soft:#22252C;--link:#8EA2FF;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.45);--online:#4CC387;--sql:#8EA2FF;--sql-soft:#1E2440;--ref:#F29A86;color-scheme:dark}
+button:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes sheen{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.live{animation:pulse 1.2s ease-in-out infinite}
+.sheen{background:linear-gradient(90deg,var(--muted) 0%,var(--ink) 50%,var(--muted) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 2.4s linear infinite}
+@media (prefers-reduced-motion: reduce){.live,.sheen{animation:none}.sheen{color:var(--ink);background:none}}
+</style>
+</helmet>
+<div class="app" data-theme="{{ theme }}" style="background: var(--bg); color: var(--ink); font-family: 'Geist', 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.6; min-height: 900px; display: flex; flex-direction: column">
+<header style="padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px">
+  <div style="display: flex; align-items: center; gap: 10px">
+    <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--ink); display: grid; place-items: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h8" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round"></path></svg></span>
+    <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.01em">Analista de Compras Públicas</span>
+  </div>
+  <button type="button" onClick="{{ toggleTheme }}" aria-label="Cambiar entre modo claro y oscuro" style="width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 12px; background: transparent; color: var(--ink2); cursor: pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"></path></svg></button>
+</header>
+<main style="flex: 1; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box; padding: 28px 24px 24px; display: flex; flex-direction: column; gap: 28px">
+  <div style="align-self: flex-end; max-width: 82%; background: var(--raised); border-radius: 20px 20px 6px 20px; padding: 12px 18px; font-size: 16px">¿Qué proveedores recibieron más órdenes del sector Salud?</div>
+  <article style="display: flex; gap: 14px; align-items: flex-start" aria-live="polite">
+    <span class="live" style="flex: none; width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; background: var(--surface)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h8" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round"></path></svg></span>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding-top: 4px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span class="sheen" style="font-size: 16px; font-weight: 500">Verificando la consulta · intento 2 de 4</span>
+        <span style="margin-left: auto; font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">4,8 s</span>
+      </div>
+      <div style="border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px 14px 14px 22px">
+        <ol style="list-style: none; margin: 0; padding: 0 0 0 20px; border-left: 2px solid var(--line-soft); display: flex; flex-direction: column; gap: 12px">
+          <li style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px"><span style="position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--surface); background: var(--sql)"></span><div style="display: flex; flex-direction: column"><span style="font-weight: 500; font-size: 14px">Enrutador</span><span style="font-size: 13.5px; color: var(--muted)">Pide cifras de las órdenes: ruta sql</span></div><span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">0,4 s</span></li>
+          <li style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px"><span style="position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--surface); background: var(--sql)"></span><div style="display: flex; flex-direction: column"><span style="font-weight: 500; font-size: 14px">Generador SQL</span><span style="font-size: 13.5px; color: var(--muted)">Intento 1</span></div><span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">1,6 s</span></li>
+          <li style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px"><span style="position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--surface); background: var(--ref)"></span><div style="display: flex; flex-direction: column"><span style="font-weight: 500; font-size: 14px">Verificador</span><span style="font-size: 13.5px; color: var(--muted)">Objeta: falta es_persona_natural junto a NombreProveedor</span></div><span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">0,1 s</span></li>
+          <li style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px"><span class="live" style="position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--surface); background: var(--link)"></span><div style="display: flex; flex-direction: column"><span style="font-weight: 500; font-size: 14px">Generador SQL</span><span style="font-size: 13.5px; color: var(--muted)">Intento 2 en curso…</span></div><span style="font-family: 'Geist Mono', monospace; font-size: 12.5px; color: var(--muted)">—</span></li>
+        </ol>
+      </div>
+      <span style="font-size: 12.5px; color: var(--muted)">Los pasos aparecen a medida que ocurren. Tiempos de ejemplo.</span>
+    </div>
+  </article>
+</main>
+<div style="position: sticky; bottom: 0; background: var(--bg); padding: 8px 24px 18px">
+  <div style="max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px">
+    <form style="display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow)">
+      <label for="pregunta-c" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Tu pregunta</label>
+      <input id="pregunta-c" disabled placeholder="Esperando la respuesta…" style="flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 16px">
+      <button type="button" aria-label="Detener" style="flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"></rect></svg></button>
+    </form>
+    <p style="margin: 0; text-align: center; font-size: 12px; color: var(--muted)">Las cifras salen de la base de datos, nunca del modelo. Las citas se verifican contra los artículos recuperados.</p>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"auto","options":["auto","light","dark"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const theme = st.t || this.props.theme || 'auto';
+    return {
+      theme: theme,
+      toggleTheme: () => {
+        const sysDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = theme === 'dark' || (theme === 'auto' && sysDark);
+        this.setState({ t: isDark ? 'light' : 'dark' });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

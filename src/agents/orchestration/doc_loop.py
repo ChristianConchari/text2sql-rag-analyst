@@ -7,6 +7,7 @@ every citation is a retrieved passage. Not covered: whether the cited text suppo
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 
 from src.policies.citation_verifier import verify_citations
@@ -14,6 +15,7 @@ from src.rag.citations import citation_label
 from src.rag.prompts.doc_prompt import NO_EVIDENCE_TOKEN, build_doc_messages
 from src.rag.retrievers.base import Passage, Retriever
 from src.runtime.providers.llm_client import ChatModel, LLMError
+from src.runtime.trace import CITATION_VERIFIER, DOC_WRITER, RETRIEVER, Trace, describe_violations
 
 EXCERPT_CHARS = 300
 
@@ -45,28 +47,48 @@ def make_citation(passage: Passage) -> Citation:
     return Citation(citation_label(passage), passage.norma, passage.article_number, excerpt)
 
 
-def run_doc_loop(question: str, llm: ChatModel, retriever: Retriever, max_retries: int = 3) -> DocResult:
-    """Retrieve, generate and verify. See the module docstring for the status values."""
+def run_doc_loop(question: str, llm: ChatModel, retriever: Retriever, max_retries: int = 3,
+                 trace: Trace | None = None) -> DocResult:
+    """Retrieve, generate and verify. See the module docstring for the status values.
+
+    `trace`: retriever, writer and citation-verifier steps are appended to it (counts and article numbers only).
+    """
+    tr = trace if trace is not None else Trace()
+    t0 = time.perf_counter()
     passages = retriever.search(question)
+    k = getattr(retriever, "k", None)
+    k_text = f"k={k} · " if k else ""
     if not passages:
+        tr.add(RETRIEVER, f"{k_text}ningún fragmento sobre el umbral", "objection", t0)
         return DocResult("no_evidence", reason="no passage above the similarity threshold")
+    tr.add(RETRIEVER, f"{k_text}{len(passages)} {'artículo' if len(passages) == 1 else 'artículos'} sobre el umbral",
+           "ok", t0)
     messages = build_doc_messages(question, passages)
     result = DocResult("failed")
-    for _ in range(1 + max_retries):
+    for n in range(1, 2 + max_retries):
+        t0 = time.perf_counter()
         try:
             raw = llm.chat(messages, max_tokens=500, temperature=0).strip()
         except LLMError as e:
+            tr.add(DOC_WRITER, f"Intento {n}: el modelo no respondió", "error", t0, n)
             result.reason = f"llm_error: {e}"
             return result
         result.attempts += 1
         if raw.upper().startswith(NO_EVIDENCE_TOKEN):
+            tr.add(DOC_WRITER, f"Intento {n}: declina, los fragmentos no responden la pregunta", "ok", t0, n)
             result.status, result.reason = "declined", raw[len(NO_EVIDENCE_TOKEN):].lstrip(": ").strip() or None
             return result
+        tr.add(DOC_WRITER, f"Intento {n}: escribe solo con los fragmentos recuperados", "ok", t0, n)
+        t0 = time.perf_counter()
         verdict = verify_citations(raw, passages)
         if verdict.ok:
+            arts = ", ".join(f"art. {p.article_number}" for p in verdict.citations)
+            verb = "fue recuperado" if len(verdict.citations) == 1 else "fueron recuperados"
+            tr.add(CITATION_VERIFIER, f"Aprueba: {arts} {verb}", "ok", t0, n)
             result.status, result.answer = "ok", raw
             result.citations = [make_citation(p) for p in verdict.citations]
             return result
+        tr.add(CITATION_VERIFIER, "Objeta: " + describe_violations(verdict.violations), "objection", t0, n)
         result.violations.append(verdict.violations)
         allowed = ", ".join(f"[{citation_label(p)}]" for p in passages)
         feedback = ("El verificador de citas rechazó la respuesta: " + "; ".join(verdict.violations)

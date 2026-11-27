@@ -1,0 +1,28 @@
+<form class="composer" (submit)="submit($event)">
+  <label [for]="inputId" class="visually-hidden">Tu pregunta</label>
+  <input
+    #field
+    [id]="inputId"
+    name="question"
+    autocomplete="off"
+    [maxlength]="max"
+    [disabled]="loading()"
+    [placeholder]="loading() ? 'Esperando la respuesta…' : 'Pregunta por las órdenes de enero o por la ley de compras…'"
+    [ngModel]="value()"
+    (ngModelChange)="value.set($event)"
+  />
+  <div class="actions">
+    @if (large()) {
+      <span class="hint">Enter para enviar</span>
+    }
+    @if (loading()) {
+      <button type="button" class="round stop" aria-label="Detener" (click)="stop.emit()">
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" /></svg>
+      </button>
+    } @else {
+      <button type="submit" class="round" aria-label="Enviar pregunta" [disabled]="!value().trim()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+    }
+  </div>
+</form>
