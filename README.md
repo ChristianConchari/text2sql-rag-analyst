@@ -82,6 +82,7 @@ python3 -I scripts/chunk_docs.py data/docs/ley_19886.jsonl data/docs/decreto_661
 
 # 4. Retrieval comparison on CPU (first run downloads ~2 GB of models; embeddings are cached in data/cache/)
 UV_TORCH_BACKEND=cpu uv run scripts/eval_retrieval.py --misses
+EMBED_DEVICE=cuda uv run --group rag python scripts/eval_consigna.py   # model, agent and RAG metrics (needs Ollama; --part rag does not) -> eval/results/consigna_*
 ```
 
 Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.core.windows.net/trnspchc/COT_{year}-{month}.zip` (month zero-padded; ~70 MB zipped, ~1.1 GB extracted per month; joins with the orders by `CodigoOC`). Not loaded by any script yet.
@@ -95,6 +96,7 @@ Other source: monthly Compra Ágil quotations at `https://transparenciachc.blob.
 | `scripts/score_baseline.py` | execution-accuracy scorer (strict and lenient) for predicted SQL |
 | `scripts/parse_bcn.py`, `scripts/chunk_docs.py` | BCN LeyChile XML → one chunk per article (`data/docs/chunks.jsonl`) |
 | `scripts/eval_retrieval.py` | BM25 / dense / hybrid / re-ranker comparison on the document questions |
+| `scripts/eval_consigna.py`, `src/eval/consigna.py` | the course brief's metrics: response time, tokens, semantic similarity, agent decisions, dialogue, retries, latency, retrieval and context coverage |
 | `eval/candidate_questions.yaml`, `eval/candidate_questions_v2.yaml` | 21 + 25 SQL questions with reference SQL, kind and known traps |
 | `eval/baseline_full_schema.yaml`, `eval/baseline_v2_full_schema.yaml` | raw baseline predictions (full schema, proxy model) |
 | `eval/doc_questions.yaml` | 25 retrieval questions with gold articles (`gold`, `gold_extra`) |
